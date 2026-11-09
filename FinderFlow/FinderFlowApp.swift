@@ -28,12 +28,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// ContentView consumes this on first appear.
     static var pendingNavigationURL: URL?
 
+    @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         UserPreferences.migrateBrowseDefaultsIfNeeded()
-        MainActor.assumeIsolated {
-            _ = UpdateManager.shared
-        }
+        _ = UpdateManager.shared
         // Sync stored toggle with actual SMAppService registration state
         if #available(macOS 13.0, *) {
             let enabled = SMAppService.mainApp.status == .enabled

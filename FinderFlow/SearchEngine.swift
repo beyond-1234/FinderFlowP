@@ -81,7 +81,8 @@ class SearchEngine: ObservableObject {
                 if matches(url: url, query: q) { found.append(url) }
                 if found.count >= 5_000 { break }   // safety cap
             }
-            await MainActor.run { self.results = found; self.isSearching = false }
+            let finalFound = found
+            await MainActor.run { self.results = finalFound; self.isSearching = false }
         }
     }
 

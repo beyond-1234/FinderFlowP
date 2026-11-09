@@ -75,68 +75,80 @@ struct IconsView: View {
         let targets = sel.isEmpty ? [item] : sel
         let urls    = targets.map(\.url)
 
-        Button("Open") { onNavigate(item) }
-        if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-        } else if item.isPackage {
-            Button("Show Package Contents") { onBrowseInto(item.url) }
-        }
-        Divider()
-        Button("Quick Look") { QuickLookController.shared.show(urls) }
-        Button("Get Info")   { showGetInfo(for: targets) }
-        Divider()
-        Button("Rename…")  { promptRename(item: item) }
-        Button(targets.count > 1 ? "Duplicate \(targets.count) Items" : "Duplicate") {
-            fileOps.duplicate(urls, reload: onReload)
-        }
-        Button(targets.count > 1 ? "Make \(targets.count) Aliases" : "Make Alias") {
-            urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
-        }
-        Button(targets.count > 1 ? "Compress \(targets.count) Items" : "Compress \"\(item.name)\"") {
-            fileOps.compress(urls, reload: onReload)
-        }
-        if targets.count == 1 && item.isArchive {
-            Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
-        }
-        Divider()
-        Button("Cut")   { fileOps.cut(urls) }
-        Button("Copy")  { fileOps.copy(urls) }
-        Button("Paste") {
-            let dest = (targets.count == 1 && item.isDirectory) ? item.url : currentPath
-            fileOps.paste(to: dest, reload: onReload)
-        }
-        .disabled(fileOps.pasteboardURLs.isEmpty)
-        Divider()
-        Menu("Share") {
-            Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
-            Divider()
-            Button("Share…") { fileOps.showShareSheet(for: urls) }
-        }
-        Divider()
-        Menu("Tags") {
-            TagMenuContent(targets: targets, fileOps: fileOps, onReload: onReload)
-        }
-        Divider()
-        if item.isBrowsableFolder {
-            if favorites.isPinned(item.url) {
-                Button("Remove from Sidebar") { favorites.unpin(item.url) }
-            } else {
-                Button("Add to Sidebar") { favorites.pin(item.url) }
+        Group {
+            Group {
+                Button("Open") { onNavigate(item) }
+                if item.isBrowsableFolder {
+                    Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+                } else if item.isPackage {
+                    Button("Show Package Contents") { onBrowseInto(item.url) }
+                }
+                Button("Open in Terminal") {
+                    let target = item.isDirectory ? item.url : currentPath
+                    TerminalLauncher.openTerminal(workingDirectory: target)
+                }
+                Divider()
+                Button("Quick Look") { QuickLookController.shared.show(urls) }
+                Button("Get Info")   { showGetInfo(for: targets) }
+                Divider()
+                Button("Rename…")  { promptRename(item: item) }
+                Button(targets.count > 1 ? "Duplicate \(targets.count) Items" : "Duplicate") {
+                    fileOps.duplicate(urls, reload: onReload)
+                }
+                Button(targets.count > 1 ? "Make \(targets.count) Aliases" : "Make Alias") {
+                    urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
+                }
             }
-        }
-        Button("Show in Finder") {
-            NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-        }
-        Button(targets.count > 1 ? "Copy \(targets.count) Paths" : "Copy Path") {
-            fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
-        }
-        Divider()
-        Button("Move to Trash", role: .destructive) {
-            fileOps.trash(urls, reload: onReload)
-        }
-        Button("Delete Permanently…", role: .destructive) {
-            confirmPermanentDelete(names: targets.map(\.name)) {
-                fileOps.permanentlyDelete(urls, reload: onReload)
+            Group {
+                Button(targets.count > 1 ? "Compress \(targets.count) Items" : "Compress \"\(item.name)\"") {
+                    fileOps.compress(urls, reload: onReload)
+                }
+                if targets.count == 1 && item.isArchive {
+                    Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
+                }
+                Divider()
+                Button("Cut")   { fileOps.cut(urls) }
+                Button("Copy")  { fileOps.copy(urls) }
+                Button("Paste") {
+                    let dest = (targets.count == 1 && item.isDirectory) ? item.url : currentPath
+                    fileOps.paste(to: dest, reload: onReload)
+                }
+                .disabled(fileOps.pasteboardURLs.isEmpty)
+                Divider()
+                Menu("Share") {
+                    Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
+                    Divider()
+                    Button("Share…") { fileOps.showShareSheet(for: urls) }
+                }
+                Divider()
+                Menu("Tags") {
+                    TagMenuContent(targets: targets, fileOps: fileOps, onReload: onReload)
+                }
+            }
+            Group {
+                Divider()
+                if item.isBrowsableFolder {
+                    if favorites.isPinned(item.url) {
+                        Button("Remove from Sidebar") { favorites.unpin(item.url) }
+                    } else {
+                        Button("Add to Sidebar") { favorites.pin(item.url) }
+                    }
+                }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
+                }
+                Button(targets.count > 1 ? "Copy \(targets.count) Paths" : "Copy Path") {
+                    fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
+                }
+                Divider()
+                Button("Move to Trash", role: .destructive) {
+                    fileOps.trash(urls, reload: onReload)
+                }
+                Button("Delete Permanently…", role: .destructive) {
+                    confirmPermanentDelete(names: targets.map(\.name)) {
+                        fileOps.permanentlyDelete(urls, reload: onReload)
+                    }
+                }
             }
         }
     }

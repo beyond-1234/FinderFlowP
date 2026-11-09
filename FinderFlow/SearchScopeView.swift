@@ -12,13 +12,13 @@ enum SearchScope: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .thisFolder:          "folder"
-        case .thisFolderRecursive: "folder.fill.badge.plus"
-        case .desktop:             "desktopcomputer"
-        case .documents:           "doc"
-        case .downloads:           "arrow.down.circle"
-        case .home:                "house"
-        case .entireMac:           "magnifyingglass"
+        case .thisFolder:          return "folder"
+        case .thisFolderRecursive: return "folder.fill.badge.plus"
+        case .desktop:             return "desktopcomputer"
+        case .documents:           return "doc"
+        case .downloads:           return "arrow.down.circle"
+        case .home:                return "house"
+        case .entireMac:           return "magnifyingglass"
         }
     }
 
@@ -56,7 +56,7 @@ struct SearchScopeView: View {
             .pickerStyle(.menu)
             .frame(maxWidth: 200)
             // Re-run search immediately when scope changes
-            .onChange(of: searchEngine.selectedScope) { _, _ in
+            .onChange(of: searchEngine.selectedScope) { _ in
                 guard !searchEngine.query.isEmpty else { return }
                 searchEngine.search(
                     in: searchEngine.selectedScope.baseURL(currentPath: currentPath))
@@ -81,7 +81,7 @@ struct SearchScopeView: View {
                         searchEngine.search(
                             in: searchEngine.selectedScope.baseURL(currentPath: currentPath))
                     }
-                    .onChange(of: searchEngine.query) { _, newValue in
+                    .onChange(of: searchEngine.query) { newValue in
                         if newValue.isEmpty {
                             searchEngine.results    = []
                             searchEngine.isSearching = false
@@ -125,7 +125,7 @@ struct SearchScopeView: View {
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         // Re-run "This Folder" search when user navigates to a different folder
-        .onChange(of: currentPath) { _, newPath in
+        .onChange(of: currentPath) { newPath in
             guard !searchEngine.query.isEmpty,
                   searchEngine.selectedScope == .thisFolder ||
                   searchEngine.selectedScope == .thisFolderRecursive

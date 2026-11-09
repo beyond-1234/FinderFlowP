@@ -19,16 +19,16 @@ final class MarkdownEditorController: ObservableObject {
         if let undoObserver { nc.removeObserver(undoObserver) }
         if let redoObserver { nc.removeObserver(redoObserver) }
         undoObserver = nc.addObserver(forName: .NSUndoManagerDidCloseUndoGroup, object: tv.undoManager, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshUndoState() }
+            self?.refreshUndoState()
         }
         redoObserver = nc.addObserver(forName: .NSUndoManagerDidUndoChange, object: tv.undoManager, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshUndoState() }
+            self?.refreshUndoState()
         }
         nc.addObserver(forName: .NSUndoManagerDidRedoChange, object: tv.undoManager, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshUndoState() }
+            self?.refreshUndoState()
         }
         nc.addObserver(forName: NSText.didChangeNotification, object: tv, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.refreshUndoState() }
+            self?.refreshUndoState()
         }
     }
 

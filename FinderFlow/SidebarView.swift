@@ -120,14 +120,14 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .onAppear { loadRecent() }
-        .onChange(of: selection) { _, item in
+        .onChange(of: selection) { item in
             guard let url = item?.folderURL, url != currentPath else { return }
             // Defer so the sidebar list is not rebuilt inside its own selection update.
             DispatchQueue.main.async {
                 if currentPath != url { currentPath = url }
             }
         }
-        .onChange(of: currentPath) { _, path in
+        .onChange(of: currentPath) { path in
             guard path.hasDirectoryPath else { return }
             DispatchQueue.main.async { addToRecent(path) }
         }
@@ -175,10 +175,10 @@ struct SidebarView: View {
     }
 
     private func unmountVolume(_ url: URL) {
-        NSWorkspace.shared.unmountAndEjectDevice(at: url) { error in
-            if let error = error {
-                print("Failed to unmount: \(error)")
-            }
+        do {
+            try NSWorkspace.shared.unmountAndEjectDevice(at: url)
+        } catch {
+            print("Failed to unmount: \(error)")
         }
     }
 

@@ -41,116 +41,117 @@ struct QuickActionsToolbar: View {
     var body: some View {
         HStack(spacing: 6) {
 
-            // ── Create ────────────────────────────────────────────────────
-            ToolbarActionButton(icon: "folder.badge.plus", label: "New Folder") { onCreateFolder() }
-            ToolbarActionButton(icon: "doc.badge.plus",    label: "New Text File") { onCreateFile() }
+            // ── Group 1: Basic File Actions ──────────────────────────────
+            Group {
+                ToolbarActionButton(icon: "folder.badge.plus", label: "New Folder") { onCreateFolder() }
+                ToolbarActionButton(icon: "doc.badge.plus",    label: "New Text File") { onCreateFile() }
 
-            Divider().frame(height: 20)
+                Divider().frame(height: 20)
 
-            // ── Undo / Redo ───────────────────────────────────────────────
-            ToolbarActionButton(icon: "arrow.uturn.backward", label: "Undo") { fileOps.undo() }
-                .disabled(!fileOps.canUndo)
-            ToolbarActionButton(icon: "arrow.uturn.forward", label: "Redo") { fileOps.redo() }
-                .disabled(!fileOps.canRedo)
+                ToolbarActionButton(icon: "arrow.uturn.backward", label: "Undo") { fileOps.undo() }
+                    .disabled(!fileOps.canUndo)
+                ToolbarActionButton(icon: "arrow.uturn.forward", label: "Redo") { fileOps.redo() }
+                    .disabled(!fileOps.canRedo)
 
-            Divider().frame(height: 20)
+                Divider().frame(height: 20)
 
-            // ── Paste / Copy Path ─────────────────────────────────────────
-            ToolbarActionButton(icon: "doc.on.clipboard", label: "Paste") {
-                fileOps.paste(to: currentPath, reload: onReload)
-            }
-            .disabled(fileOps.pasteboardURLs.isEmpty)
-
-            ToolbarActionButton(icon: "doc.on.clipboard.fill", label: "Copy Path") {
-                fileOps.copyPath(currentPath.path)
-            }
-
-            // ── Delete ────────────────────────────────────────────────────
-            ToolbarActionButton(icon: "trash", label: "Delete Permanently…") { onDelete() }
-                .disabled(selectedCount == 0)
-
-            Divider().frame(height: 20)
-
-            // ── Terminal (always visible) ─────────────────────────────────
-            ToolbarActionButton(icon: "terminal", label: "Open Terminal") {
-                openInTerminal(openTarget)
-            }
-
-            // ── IDEs: only shown when detected ────────────────────────────
-            if let icon = apps.vscode {
-                AppIconToolbarButton(appIcon: icon, label: "Open in VS Code") {
-                    openInVSCode(openTarget)
+                ToolbarActionButton(icon: "doc.on.clipboard", label: "Paste") {
+                    fileOps.paste(to: currentPath, reload: onReload)
                 }
-            }
+                .disabled(fileOps.pasteboardURLs.isEmpty)
 
-            if let icon = apps.claude {
-                AppIconToolbarButton(appIcon: icon, label: "Open in Claude Code (new terminal window)") {
-                    openInClaudeCode(openTarget)
+                ToolbarActionButton(icon: "doc.on.clipboard.fill", label: "Copy Path") {
+                    fileOps.copyPath(currentPath.path)
                 }
+
+                ToolbarActionButton(icon: "trash", label: "Delete Permanently…") { onDelete() }
+                    .disabled(selectedCount == 0)
+
+                Divider().frame(height: 20)
             }
 
-            if let icon = apps.cursor {
-                AppIconToolbarButton(appIcon: icon, label: "Open in Cursor") {
-                    openInCursor(openTarget)
+            // ── Group 2: External Tools & IDEs ────────────────────────────
+            Group {
+                ToolbarActionButton(icon: "terminal", label: "Open Terminal") {
+                    openInTerminal(openTarget)
                 }
-            }
 
-            if let icon = apps.codex {
-                AppIconToolbarButton(appIcon: icon, label: "Open in Codex") {
-                    openInCodex(openTarget)
-                }
-            }
-
-            Divider().frame(height: 20)
-
-            // ── Toggles ───────────────────────────────────────────────────
-            Toggle(isOn: $showHidden) {
-                Label("Hidden Files", systemImage: showHidden ? "eye" : "eye.slash")
-                    .labelStyle(.iconOnly)
-            }
-            .toggleStyle(.button).buttonStyle(.borderless)
-            .help(showHidden ? "Hide hidden files" : "Show hidden files")
-
-            Menu {
-                Picker("Group By", selection: $groupBy) {
-                    ForEach(GroupBy.allCases) { g in
-                        Text(g.menuTitle).tag(g)
+                if let icon = apps.vscode {
+                    AppIconToolbarButton(appIcon: icon, label: "Open in VS Code") {
+                        openInVSCode(openTarget)
                     }
                 }
-            } label: {
-                Image(systemName: groupBy == .none ? "rectangle.3.group" : "rectangle.3.group.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(groupBy == .none ? Color.primary : Color.accentColor)
-            }
-            .menuStyle(.borderlessButton)
-            .frame(width: 28)
-            .help(groupBy == .none ? "Group By" : "Grouped by \(groupBy.menuTitle)")
 
-            Toggle(isOn: $showPreview) {
-                Label("File Preview", systemImage: showPreview ? "doc.richtext.fill" : "doc.richtext")
-                    .labelStyle(.iconOnly)
-            }
-            .toggleStyle(.button).buttonStyle(.borderless)
-            .help(showPreview ? "Hide preview panel" : "Show file preview panel")
+                if let icon = apps.claude {
+                    AppIconToolbarButton(appIcon: icon, label: "Open in Claude Code (new terminal window)") {
+                        openInClaudeCode(openTarget)
+                    }
+                }
 
-            if viewMode == .columns {
-                Toggle(isOn: $showColumnTree) {
-                    Label("Show Tree", systemImage: showColumnTree ? "sidebar.left" : "rectangle.split.1x2")
+                if let icon = apps.cursor {
+                    AppIconToolbarButton(appIcon: icon, label: "Open in Cursor") {
+                        openInCursor(openTarget)
+                    }
+                }
+
+                if let icon = apps.codex {
+                    AppIconToolbarButton(appIcon: icon, label: "Open in Codex") {
+                        openInCodex(openTarget)
+                    }
+                }
+
+                Divider().frame(height: 20)
+            }
+
+            // ── Group 3: View Toggles & Navigation ────────────────────────
+            Group {
+                Toggle(isOn: $showHidden) {
+                    Label("Hidden Files", systemImage: showHidden ? "eye" : "eye.slash")
                         .labelStyle(.iconOnly)
                 }
                 .toggleStyle(.button).buttonStyle(.borderless)
-                .help(showColumnTree ? "Hide folder tree — show current folder only"
-                                     : "Show full folder tree from root")
-            }
+                .help(showHidden ? "Hide hidden files" : "Show hidden files")
 
-            ToolbarActionButton(icon: "arrow.clockwise", label: "Refresh") { onReload() }
+                Menu {
+                    Picker("Group By", selection: $groupBy) {
+                        ForEach(GroupBy.allCases) { g in
+                            Text(g.menuTitle).tag(g)
+                        }
+                    }
+                } label: {
+                    Image(systemName: groupBy == .none ? "rectangle.3.group" : "rectangle.3.group.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(groupBy == .none ? Color.primary : Color.accentColor)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 28)
+                .help(groupBy == .none ? "Group By" : "Grouped by \(groupBy.menuTitle)")
 
-            Divider().frame(height: 20)
+                Toggle(isOn: $showPreview) {
+                    Label("File Preview", systemImage: showPreview ? "doc.richtext.fill" : "doc.richtext")
+                        .labelStyle(.iconOnly)
+                }
+                .toggleStyle(.button).buttonStyle(.borderless)
+                .help(showPreview ? "Hide preview panel" : "Show file preview panel")
 
-            // ── Go Up ─────────────────────────────────────────────────────
-            ToolbarActionButton(icon: "arrow.up", label: "Go Up") {
-                let p = currentPath.deletingLastPathComponent()
-                if p != currentPath { currentPath = p }
+                if viewMode == .columns {
+                    Toggle(isOn: $showColumnTree) {
+                        Label("Show Tree", systemImage: showColumnTree ? "sidebar.left" : "rectangle.split.1x2")
+                            .labelStyle(.iconOnly)
+                    }
+                    .toggleStyle(.button).buttonStyle(.borderless)
+                    .help(showColumnTree ? "Hide folder tree — show current folder only"
+                                         : "Show full folder tree from root")
+                }
+
+                ToolbarActionButton(icon: "arrow.clockwise", label: "Refresh") { onReload() }
+
+                Divider().frame(height: 20)
+
+                ToolbarActionButton(icon: "arrow.up", label: "Go Up") {
+                    let p = currentPath.deletingLastPathComponent()
+                    if p != currentPath { currentPath = p }
+                }
             }
 
             Spacer()

@@ -348,9 +348,9 @@ enum ViewMode: String, CaseIterable {
     case list, icons, columns
     var icon: String {
         switch self {
-        case .list:    "list.bullet"
-        case .icons:   "square.grid.2x2"
-        case .columns: "rectangle.split.3x1"
+        case .list:    return "list.bullet"
+        case .icons:   return "square.grid.2x2"
+        case .columns: return "rectangle.split.3x1"
         }
     }
 }

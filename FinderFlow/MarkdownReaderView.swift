@@ -61,9 +61,9 @@ struct MarkdownReaderView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear        { loadFile(); pushTitle(); previewText = editText }
-        .onChange(of: current)    { _, _ in loadFile(); pushTitle(); previewText = editText }
-        .onChange(of: isModified) { _, _ in pushTitle() }
-        .onChange(of: editText) { _, newValue in
+        .onChange(of: current) { _ in loadFile(); pushTitle(); previewText = editText }
+        .onChange(of: isModified) { _ in pushTitle() }
+        .onChange(of: editText) { newValue in
             previewTask?.cancel()
             previewTask = Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 300_000_000)
@@ -148,7 +148,7 @@ struct MarkdownReaderView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 100)
-            .onChange(of: mode) { _, newMode in
+            .onChange(of: mode) { newMode in
                 // Auto-save when switching back to reader so WebView shows fresh content
                 if newMode == .read, isModified {
                     commitSave()
@@ -204,59 +204,63 @@ struct MarkdownReaderView: View {
 
     private var formatToolbar: some View {
         HStack(spacing: 2) {
-            formatButton("arrow.uturn.backward", help: "Undo", enabled: editorCtrl.canUndo) {
-                editorCtrl.run { MarkdownFormatActions.undo($0) }
-            }
-            formatButton("arrow.uturn.forward", help: "Redo", enabled: editorCtrl.canRedo) {
-                editorCtrl.run { MarkdownFormatActions.redo($0) }
-            }
-            Divider().frame(height: 16).padding(.horizontal, 4)
+            Group {
+                formatButton("arrow.uturn.backward", help: "Undo", enabled: editorCtrl.canUndo) {
+                    editorCtrl.run { MarkdownFormatActions.undo($0) }
+                }
+                formatButton("arrow.uturn.forward", help: "Redo", enabled: editorCtrl.canRedo) {
+                    editorCtrl.run { MarkdownFormatActions.redo($0) }
+                }
+                Divider().frame(height: 16).padding(.horizontal, 4)
 
-            formatButton("bold", help: "Bold") {
-                editorCtrl.run { MarkdownFormatActions.bold($0) }; isModified = true
-            }
-            formatButton("italic", help: "Italic") {
-                editorCtrl.run { MarkdownFormatActions.italic($0) }; isModified = true
-            }
-            formatButton("strikethrough", help: "Strikethrough") {
-                editorCtrl.run { MarkdownFormatActions.strikethrough($0) }; isModified = true
-            }
-            formatButton("chevron.left.forwardslash.chevron.right", help: "Inline code") {
-                editorCtrl.run { MarkdownFormatActions.inlineCode($0) }; isModified = true
-            }
-            Divider().frame(height: 16).padding(.horizontal, 4)
+                formatButton("bold", help: "Bold") {
+                    editorCtrl.run { MarkdownFormatActions.bold($0) }; isModified = true
+                }
+                formatButton("italic", help: "Italic") {
+                    editorCtrl.run { MarkdownFormatActions.italic($0) }; isModified = true
+                }
+                formatButton("strikethrough", help: "Strikethrough") {
+                    editorCtrl.run { MarkdownFormatActions.strikethrough($0) }; isModified = true
+                }
+                formatButton("chevron.left.forwardslash.chevron.right", help: "Inline code") {
+                    editorCtrl.run { MarkdownFormatActions.inlineCode($0) }; isModified = true
+                }
+                Divider().frame(height: 16).padding(.horizontal, 4)
 
-            formatButton("textformat.size.larger", help: "Heading 1") {
-                editorCtrl.run { MarkdownFormatActions.heading($0, level: 1) }; isModified = true
+                formatButton("textformat.size.larger", help: "Heading 1") {
+                    editorCtrl.run { MarkdownFormatActions.heading($0, level: 1) }; isModified = true
+                }
+                formatButton("textformat.size", help: "Heading 2") {
+                    editorCtrl.run { MarkdownFormatActions.heading($0, level: 2) }; isModified = true
+                }
             }
-            formatButton("textformat.size", help: "Heading 2") {
-                editorCtrl.run { MarkdownFormatActions.heading($0, level: 2) }; isModified = true
-            }
-            formatButton("textformat.size.smaller", help: "Heading 3") {
-                editorCtrl.run { MarkdownFormatActions.heading($0, level: 3) }; isModified = true
-            }
-            Divider().frame(height: 16).padding(.horizontal, 4)
+            Group {
+                formatButton("textformat.size.smaller", help: "Heading 3") {
+                    editorCtrl.run { MarkdownFormatActions.heading($0, level: 3) }; isModified = true
+                }
+                Divider().frame(height: 16).padding(.horizontal, 4)
 
-            formatButton("list.bullet", help: "Bullet list") {
-                editorCtrl.run { MarkdownFormatActions.bulletList($0) }; isModified = true
+                formatButton("list.bullet", help: "Bullet list") {
+                    editorCtrl.run { MarkdownFormatActions.bulletList($0) }; isModified = true
+                }
+                formatButton("list.number", help: "Numbered list") {
+                    editorCtrl.run { MarkdownFormatActions.numberedList($0) }; isModified = true
+                }
+                formatButton("text.quote", help: "Quote") {
+                    editorCtrl.run { MarkdownFormatActions.quote($0) }; isModified = true
+                }
+                formatButton("curlybraces", help: "Code block") {
+                    editorCtrl.run { MarkdownFormatActions.codeFence($0) }; isModified = true
+                }
+                formatButton("link", help: "Link") {
+                    linkURLDraft = "https://"
+                    showLinkSheet = true
+                }
+                formatButton("minus", help: "Horizontal rule") {
+                    editorCtrl.run { MarkdownFormatActions.horizontalRule($0) }; isModified = true
+                }
+                Spacer(minLength: 0)
             }
-            formatButton("list.number", help: "Numbered list") {
-                editorCtrl.run { MarkdownFormatActions.numberedList($0) }; isModified = true
-            }
-            formatButton("text.quote", help: "Quote") {
-                editorCtrl.run { MarkdownFormatActions.quote($0) }; isModified = true
-            }
-            formatButton("curlybraces", help: "Code block") {
-                editorCtrl.run { MarkdownFormatActions.codeFence($0) }; isModified = true
-            }
-            formatButton("link", help: "Link") {
-                linkURLDraft = "https://"
-                showLinkSheet = true
-            }
-            formatButton("minus", help: "Horizontal rule") {
-                editorCtrl.run { MarkdownFormatActions.horizontalRule($0) }; isModified = true
-            }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)

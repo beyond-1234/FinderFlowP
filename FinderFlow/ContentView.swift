@@ -43,6 +43,7 @@ struct ContentView: View {
     @State private var backStack: [URL] = []
     @State private var forwardStack: [URL] = []
     @State private var isNavigatingHistory = false
+    @State private var lastPath: URL?
     @State private var mouseMonitor: Any?
 
     // Derived selected item for preview
@@ -156,6 +157,7 @@ struct ContentView: View {
         splitView
         // ── Lifecycle ───────────────────────────────────────────────────
         .onAppear {
+            lastPath = currentPath
             UserPreferences.migrateBrowseDefaultsIfNeeded()
             reload()
             watchOpenFolder()
@@ -177,11 +179,14 @@ struct ContentView: View {
         }
         // Don't clear the icon cache on every navigation — NSCache evicts under
         // memory pressure automatically; keeping icons warm makes navigation fast.
-        .onChange(of: currentPath) { oldPath, newPath in
+        .onChange(of: currentPath) { newPath in
             if !isNavigatingHistory {
-                backStack.append(oldPath)
-                forwardStack.removeAll()
+                if let old = lastPath, old != newPath {
+                    backStack.append(old)
+                    forwardStack.removeAll()
+                }
             }
+            lastPath = newPath
             isNavigatingHistory = false
             // Instant feedback: clear stale listing so navigation doesn't look frozen
             // while the background reload runs.
@@ -191,25 +196,25 @@ struct ContentView: View {
             reload()
             watchOpenFolder()
         }
-        .onChange(of: sortFieldRaw)     { _, _  in
+        .onChange(of: sortFieldRaw) { _ in
             rawFiles = sortedItems(rawFiles, by: sortField, ascending: sortAscending, folderOrder: folderOrder)
             resortSearchFiles()
         }
-        .onChange(of: sortAscending) { _, _  in
+        .onChange(of: sortAscending) { _ in
             rawFiles = sortedItems(rawFiles, by: sortField, ascending: sortAscending, folderOrder: folderOrder)
             resortSearchFiles()
         }
-        .onChange(of: folderOrderRaw)   { _, _  in
+        .onChange(of: folderOrderRaw) { _ in
             rawFiles = sortedItems(rawFiles, by: sortField, ascending: sortAscending, folderOrder: folderOrder)
             resortSearchFiles()
         }
-        .onChange(of: showHidden) { _, _ in reload() }
+        .onChange(of: showHidden) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .refreshDirectory)) { note in
             guard let url = note.object as? URL, url == currentPath else { return }
             reload()
         }
         // Recompute Spotlight search results in background (never on the render thread)
-        .onChange(of: searchEngine.results) { _, results in
+        .onChange(of: searchEngine.results) { results in
             if results.isEmpty { searchDisplayFiles = []; return }
             let field = sortField; let asc = sortAscending; let fold = folderOrder
             DispatchQueue.global(qos: .userInitiated).async {
@@ -219,7 +224,7 @@ struct ContentView: View {
             }
         }
         // Select an item after paste/duplicate (no rename dialog needed)
-        .onChange(of: rawFiles) { _, newFiles in
+        .onChange(of: rawFiles) { newFiles in
             guard let url = pendingSelectURL,
                   let item = newFiles.first(where: { $0.url == url }) else { return }
             selectedIDs    = [item.id]
@@ -275,7 +280,7 @@ struct ContentView: View {
             showToast(ActionFeedback(icon: "doc.on.clipboard.fill", message: "Path copied"))
         }
         // When a tag is selected, search Mac-wide; when cleared, reset tagged results
-        .onChange(of: activeTagFilter) { _, tag in
+        .onChange(of: activeTagFilter) { tag in
             if let tag {
                 tagService.searchFiles(forTag: tag)
             } else {
@@ -284,7 +289,7 @@ struct ContentView: View {
             }
         }
         // Convert Spotlight tag results to FileItems in background
-        .onChange(of: tagService.taggedFileURLs) { _, urls in
+        .onChange(of: tagService.taggedFileURLs) { urls in
             let field = sortField; let asc = sortAscending; let fold = folderOrder
             DispatchQueue.global(qos: .userInitiated).async {
                 let files = sortedItems(urls.compactMap { FileItem.load(from: $0) },

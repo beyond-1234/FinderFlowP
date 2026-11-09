@@ -104,12 +104,12 @@ struct ColumnsView: View {
                 }
                 .frame(minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
             }
-            .onChange(of: columns) { _, cols in
+            .onChange(of: columns) { cols in
                 if let last = cols.indices.last {
                     withAnimation { proxy.scrollTo(last, anchor: .trailing) }
                 }
             }
-            .onChange(of: selectedFileURL) { _, url in
+            .onChange(of: selectedFileURL) { url in
                 if url != nil {
                     DispatchQueue.main.async {
                         withAnimation { proxy.scrollTo("preview", anchor: .trailing) }
@@ -119,13 +119,13 @@ struct ColumnsView: View {
         }
         .background(Color(nsColor: .textBackgroundColor))
         .onAppear       { buildColumns() }
-        .onChange(of: currentPath)    { _, newPath in
+        .onChange(of: currentPath) { newPath in
             // Only rebuild if the new path isn't already in our column list.
             // If it IS already there, the user clicked within the column view and
             // the onSelect handler already updated `columns` — don't overwrite it.
             if !columns.contains(newPath) { buildColumns() }
         }
-        .onChange(of: showColumnTree) { _, _ in buildColumns() }
+        .onChange(of: showColumnTree) { _ in buildColumns() }
     }
 
     @ViewBuilder
@@ -256,7 +256,7 @@ struct ColumnPreviewPane: View {
         }
         .background(Color(nsColor: .textBackgroundColor))
         .onAppear   { item = FileItem.load(from: url) }
-        .onChange(of: url) { _, u in item = FileItem.load(from: u) }
+        .onChange(of: url) { u in item = FileItem.load(from: u) }
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {
@@ -446,14 +446,14 @@ struct ColumnPane: View {
             reload()
             watchFolder()
         }
-        .onChange(of: directory) { _, _ in
+        .onChange(of: directory) { _ in
             reload()
             watchFolder()
         }
-        .onChange(of: showHidden) { _, _ in reload() }
-        .onChange(of: sortField)     { _, _ in reload() }
-        .onChange(of: sortAscending) { _, _ in reload() }
-        .onChange(of: folderOrder)   { _, _ in reload() }
+        .onChange(of: showHidden) { _ in reload() }
+        .onChange(of: sortField) { _ in reload() }
+        .onChange(of: sortAscending) { _ in reload() }
+        .onChange(of: folderOrder) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .refreshDirectory)) { notif in
             if let url = notif.object as? URL, url == directory { reload() }
         }
@@ -483,68 +483,80 @@ struct ColumnPane: View {
 
     @ViewBuilder
     private func columnContextMenu(item: FileItem) -> some View {
-        Button("Open") {
-            if item.isBrowsableFolder {
-                onSelect(item)
-            } else {
-                onOpen(item.url)
+        Group {
+            Group {
+                Button("Open") {
+                    if item.isBrowsableFolder {
+                        onSelect(item)
+                    } else {
+                        onOpen(item.url)
+                    }
+                }
+                if item.isBrowsableFolder {
+                    Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+                } else if item.isPackage {
+                    Button("Show Package Contents") { onBrowseInto(item.url) }
+                }
+                Button("Open in Terminal") {
+                    let target = item.isDirectory ? item.url : directory
+                    TerminalLauncher.openTerminal(workingDirectory: target)
+                }
+                Divider()
+                Button("Quick Look") { QuickLookController.shared.show([item.url]) }
+                Button("Get Info")   { showGetInfo(item: item) }
+                Divider()
+                Button("Rename…")    { promptRename(item: item) }
+                Button("Duplicate")  { fileOps.duplicate([item.url], reload: reload) }
+                Button("Make Alias") { fileOps.makeAlias(for: item.url, reload: reload) }
             }
-        }
-        if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-        } else if item.isPackage {
-            Button("Show Package Contents") { onBrowseInto(item.url) }
-        }
-        Divider()
-        Button("Quick Look") { QuickLookController.shared.show([item.url]) }
-        Button("Get Info")   { showGetInfo(item: item) }
-        Divider()
-        Button("Rename…")    { promptRename(item: item) }
-        Button("Duplicate")  { fileOps.duplicate([item.url], reload: reload) }
-        Button("Make Alias") { fileOps.makeAlias(for: item.url, reload: reload) }
-        Button("Compress \"\(item.name)\"") { fileOps.compress([item.url], reload: reload) }
-        if item.isArchive {
-            Button("Extract Here") { fileOps.extract(item.url, reload: reload) }
-        }
-        Divider()
-        Button("Cut")   { fileOps.cut([item.url]) }
-        Button("Copy")  { fileOps.copy([item.url]) }
-        Button("Paste") {
-            let dest = item.isDirectory ? item.url : directory
-            fileOps.paste(to: dest, reload: reload)
-        }
-        .disabled(fileOps.pasteboardURLs.isEmpty)
-        Divider()
-        Menu("Share") {
-            Button("AirDrop") { fileOps.shareViaAirDrop([item.url]) }
-            Divider()
-            Button("Share…")  { fileOps.showShareSheet(for: [item.url]) }
-        }
-        Divider()
-        Menu("Tags") {
-            TagMenuContent(targets: [item], fileOps: fileOps, onReload: reload)
-        }
-        Divider()
-        if item.isDirectory {
-            if favorites.isPinned(item.url) {
-                Button("Remove from Sidebar") { favorites.unpin(item.url) }
-            } else {
-                Button("Add to Sidebar") { favorites.pin(item.url) }
+            Group {
+                Button("Compress \"\(item.name)\"") { fileOps.compress([item.url], reload: reload) }
+                if item.isArchive {
+                    Button("Extract Here") { fileOps.extract(item.url, reload: reload) }
+                }
+                Divider()
+                Button("Cut")   { fileOps.cut([item.url]) }
+                Button("Copy")  { fileOps.copy([item.url]) }
+                Button("Paste") {
+                    let dest = item.isDirectory ? item.url : directory
+                    fileOps.paste(to: dest, reload: reload)
+                }
+                .disabled(fileOps.pasteboardURLs.isEmpty)
+                Divider()
+                Menu("Share") {
+                    Button("AirDrop") { fileOps.shareViaAirDrop([item.url]) }
+                    Divider()
+                    Button("Share…")  { fileOps.showShareSheet(for: [item.url]) }
+                }
+                Divider()
+                Menu("Tags") {
+                    TagMenuContent(targets: [item], fileOps: fileOps, onReload: reload)
+                }
             }
-        }
-        Button("Show in Finder") {
-            NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-        }
-        Button("Copy Path") {
-            fileOps.copyPath(item.url.path)
-        }
-        Divider()
-        Button("Move to Trash", role: .destructive) {
-            fileOps.trash([item.url], reload: reload)
-        }
-        Button("Delete Permanently…", role: .destructive) {
-            confirmPermanentDelete(names: [item.name]) {
-                fileOps.permanentlyDelete([item.url], reload: reload)
+            Group {
+                Divider()
+                if item.isDirectory {
+                    if favorites.isPinned(item.url) {
+                        Button("Remove from Sidebar") { favorites.unpin(item.url) }
+                    } else {
+                        Button("Add to Sidebar") { favorites.pin(item.url) }
+                    }
+                }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
+                }
+                Button("Copy Path") {
+                    fileOps.copyPath(item.url.path)
+                }
+                Divider()
+                Button("Move to Trash", role: .destructive) {
+                    fileOps.trash([item.url], reload: reload)
+                }
+                Button("Delete Permanently…", role: .destructive) {
+                    confirmPermanentDelete(names: [item.name]) {
+                        fileOps.permanentlyDelete([item.url], reload: reload)
+                    }
+                }
             }
         }
     }

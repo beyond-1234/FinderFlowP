@@ -374,46 +374,48 @@ struct CodeEditorView: View {
 
             Spacer(minLength: 0)
 
-            Button { ctrl.palette() } label: { Image(systemName: "command") }
-                .buttonStyle(.borderless).help("Command Palette  ⌘⇧P")
-            Button { ctrl.find() } label: { Image(systemName: "magnifyingglass") }
-                .buttonStyle(.borderless).help("Find / Replace  ⌘F")
-            Button { ctrl.gotoLine() } label: { Image(systemName: "arrow.right.to.line") }
-                .buttonStyle(.borderless).help("Go to Line  ⌘L")
-            Button { ctrl.presentOpenPanel() } label: { Image(systemName: "doc.badge.plus") }
-                .buttonStyle(.borderless).help("Open File in New Tab  ⌘O")
-            Button { ctrl.toggleWrap(); wrap = ctrl.wrap } label: {
-                Image(systemName: wrap ? "text.alignleft" : "text.append")
-            }
-            .buttonStyle(.borderless).help(wrap ? "Wrap: on" : "Wrap: off")
+            Group {
+                Button { ctrl.palette() } label: { Image(systemName: "command") }
+                    .buttonStyle(.borderless).help("Command Palette  ⌘⇧P")
+                Button { ctrl.find() } label: { Image(systemName: "magnifyingglass") }
+                    .buttonStyle(.borderless).help("Find / Replace  ⌘F")
+                Button { ctrl.gotoLine() } label: { Image(systemName: "arrow.right.to.line") }
+                    .buttonStyle(.borderless).help("Go to Line  ⌘L")
+                Button { ctrl.presentOpenPanel() } label: { Image(systemName: "doc.badge.plus") }
+                    .buttonStyle(.borderless).help("Open File in New Tab  ⌘O")
+                Button { ctrl.toggleWrap(); wrap = ctrl.wrap } label: {
+                    Image(systemName: wrap ? "text.alignleft" : "text.append")
+                }
+                .buttonStyle(.borderless).help(wrap ? "Wrap: on" : "Wrap: off")
 
-            Button { minimap.toggle(); ctrl.setMinimap(minimap) } label: {
-                Image(systemName: minimap ? "rectangle.righthalf.inset.filled" : "rectangle.righthalf.inset.filled")
-                    .foregroundStyle(minimap ? Color.accentColor : Color.secondary)
-            }
-            .buttonStyle(.borderless).help(minimap ? "Minimap: on  ⌘⇧M" : "Minimap: off  ⌘⇧M")
+                Button { minimap.toggle(); ctrl.setMinimap(minimap) } label: {
+                    Image(systemName: minimap ? "rectangle.righthalf.inset.filled" : "rectangle.righthalf.inset.filled")
+                        .foregroundStyle(minimap ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.borderless).help(minimap ? "Minimap: on  ⌘⇧M" : "Minimap: off  ⌘⇧M")
 
-            Menu {
-                Button("Settings…")     { ctrl.settings() }
-                Divider()
-                Button("Increase Font") { ctrl.setFontSize(fontSize + 1); fontSize = ctrl.fontSize }
-                Button("Decrease Font") { ctrl.setFontSize(fontSize - 1); fontSize = ctrl.fontSize }
-                Divider()
-                Toggle("Sublime Keybindings", isOn: Binding(
-                    get: { sublimeKeys },
-                    set: { _ in ctrl.toggleSublime(); sublimeKeys = ctrl.sublimeKeys }
-                ))
-            } label: {
-                Image(systemName: "textformat.size")
-            }
-            .menuStyle(.borderlessButton).frame(width: 34).help("Editor options")
+                Menu {
+                    Button("Settings…")     { ctrl.settings() }
+                    Divider()
+                    Button("Increase Font") { ctrl.setFontSize(fontSize + 1); fontSize = ctrl.fontSize }
+                    Button("Decrease Font") { ctrl.setFontSize(fontSize - 1); fontSize = ctrl.fontSize }
+                    Divider()
+                    Toggle("Sublime Keybindings", isOn: Binding(
+                        get: { sublimeKeys },
+                        set: { _ in ctrl.toggleSublime(); sublimeKeys = ctrl.sublimeKeys }
+                    ))
+                } label: {
+                    Image(systemName: "textformat.size")
+                }
+                .menuStyle(.borderlessButton).frame(width: 34).help("Editor options")
 
-            Button(action: { ctrl.saveActive() }) {
-                Image(systemName: "square.and.arrow.down")
+                Button { ctrl.saveActive() } label: {
+                    Image(systemName: "square.and.arrow.down")
+                }
+                .buttonStyle(.borderless)
+                .disabled(ctrl.activeDoc?.modified != true)
+                .help("Save  ⌘S")
             }
-            .buttonStyle(.borderless)
-            .disabled(ctrl.activeDoc?.modified != true)
-            .help("Save  ⌘S")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)

@@ -43,7 +43,7 @@ struct ListView: View {
             )
         } else {
             tableView
-                .onChange(of: pendingRenameURL) { _, url in
+                .onChange(of: pendingRenameURL) { url in
                     guard let url, let item = files.first(where: { $0.url == url }) else { return }
                     startRename(item: item)
                     pendingRenameURL = nil
@@ -107,7 +107,7 @@ struct ListView: View {
                     .foregroundStyle(.secondary)
             }.width(min: 40, ideal: 68, max: 120)
         }
-        .onChange(of: sortOrder) { _, order in
+        .onChange(of: sortOrder) { order in
             guard let first = order.first else { return }
             sortAscending = (first.order == .forward)
             switch first.keyPath {
@@ -120,14 +120,14 @@ struct ListView: View {
             default: break
             }
         }
-        .onChange(of: sortField)     { _, _ in syncSortOrder() }
-        .onChange(of: sortAscending) { _, _ in syncSortOrder() }
-        .onChange(of: files) { _, newFiles in
+        .onChange(of: sortField) { _ in syncSortOrder() }
+        .onChange(of: sortAscending) { _ in syncSortOrder() }
+        .onChange(of: files) { newFiles in
             if let id = renamingID, !newFiles.contains(where: { $0.id == id }) {
                 renamingID = nil
             }
         }
-        .onChange(of: renameActive)  { _, active in
+        .onChange(of: renameActive) { active in
             guard !active, let id = renamingID,
                   let item = files.first(where: { $0.id == id }) else { return }
             commitRename(for: item)
@@ -259,86 +259,19 @@ struct ListView: View {
 
     @ViewBuilder
     func contextMenu(for ids: Set<String>) -> some View {
-        let sel  = files.filter { ids.contains($0.id) }
-        if let item = sel.first {
-            let urls = sel.map(\.url)
-
-            Button("Open")               { onNavigate(item) }
-            if item.isBrowsableFolder {
-                Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-            } else if item.isPackage {
-                Button("Show Package Contents") { onBrowseInto(item.url) }
-            }
-            Button("Open in Terminal") {
-                let target = item.isDirectory ? item.url : currentPath
-                TerminalApp.open(url: target)
-            }
-            Divider()
-            Button("Quick Look")         { quickLook(ids: ids) }
-            Button("Get Info")           { showGetInfo(for: sel) }
-            Divider()
-            Button("Rename…")            { pendingRenameURL = item.url }
-            Button(sel.count > 1 ? "Duplicate \(sel.count) Items" : "Duplicate") {
-                fileOps.duplicate(urls, reload: onReload)
-            }
-            Button(sel.count > 1 ? "Make \(sel.count) Aliases" : "Make Alias") {
-                urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
-            }
-            Button(sel.count > 1 ? "Compress \(sel.count) Items" : "Compress \"\(item.name)\"") {
-                fileOps.compress(urls, reload: onReload)
-            }
-            if sel.count == 1 && item.isArchive {
-                Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
-            }
-            Divider()
-            Button("Cut")                { fileOps.cut(urls) }
-            Button("Copy")               { fileOps.copy(urls) }
-            Button("Paste") {
-                let dest = (sel.count == 1 && item.isDirectory) ? item.url : currentPath
-                fileOps.paste(to: dest, reload: onReload)
-            }
-            .disabled(fileOps.pasteboardURLs.isEmpty)
-            Divider()
-            Menu("Share") {
-                Button("AirDrop")        { fileOps.shareViaAirDrop(urls) }
-                Divider()
-                Button("Share…")         { fileOps.showShareSheet(for: urls) }
-            }
-            Divider()
-            Menu("Tags") {
-                TagMenuContent(targets: sel, fileOps: fileOps, onReload: onReload)
-            }
-            Divider()
-            if item.isDirectory {
-                if favorites.isPinned(item.url) {
-                    Button("Remove from Sidebar") { favorites.unpin(item.url) }
-                } else {
-                    Button("Add to Sidebar") { favorites.pin(item.url) }
-                }
-            }
-            Button("Show in Finder") {
-                NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-            }
-            Button(sel.count > 1 ? "Copy \(sel.count) Paths" : "Copy Path") {
-                fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
-            }
-            Divider()
-            Button("Move to Trash", role: .destructive) {
-                fileOps.trash(urls, reload: onReload)
-            }
-            Button("Delete Permanently…", role: .destructive) {
-                confirmPermanentDelete(names: sel.map(\.name)) {
-                    fileOps.permanentlyDelete(urls, reload: onReload)
-                }
-            }
-        } else {
-            Button("Paste") { fileOps.paste(to: currentPath, reload: onReload) }
-                .disabled(fileOps.pasteboardURLs.isEmpty)
-            if fileOps.canUndo { Button("Undo") { fileOps.undo() } }
-            if fileOps.canRedo { Button("Redo") { fileOps.redo() } }
-            Divider()
-            Button("Refresh") { onReload() }
-        }
+        ItemMenuContent(
+            sel: files.filter { ids.contains($0.id) },
+            currentPath: currentPath,
+            fileOps: fileOps,
+            favorites: favorites,
+            onNavigate: onNavigate,
+            onBrowseInto: onBrowseInto,
+            onReload: onReload,
+            onRename: { startRename(item: $0) },
+            onQuickLook: { quickLook(ids: $0) },
+            onGetInfo: { showGetInfo(for: $0) },
+            onConfirmDelete: { names, act in confirmPermanentDelete(names: names, onConfirm: act) }
+        )
     }
 
     // MARK: - Helpers
@@ -436,22 +369,22 @@ struct GroupedListView: View {
                 }
             }
         }
-        .onChange(of: selectedIDs) { _, ids in
+        .onChange(of: selectedIDs) { ids in
             if let id = ids.first {
                 withAnimation { proxy.scrollTo(id, anchor: .center) }
             }
         }
-        .onChange(of: files) { _, newFiles in
+        .onChange(of: files) { newFiles in
             if let id = renamingID, !newFiles.contains(where: { $0.id == id }) {
                 renamingID = nil
             }
         }
-        .onChange(of: renameActive) { _, active in
+        .onChange(of: renameActive) { active in
             guard !active, let id = renamingID,
                   let item = files.first(where: { $0.id == id }) else { return }
             commitGroupedRename(for: item)
         }
-        .onChange(of: pendingRenameURL) { _, url in
+        .onChange(of: pendingRenameURL) { url in
             guard let url, let item = files.first(where: { $0.url == url }) else { return }
             startGroupedRename(item: item)
             pendingRenameURL = nil
@@ -493,69 +426,22 @@ struct GroupedListView: View {
     private func listContextMenu(item: FileItem) -> some View {
         let sel     = files.filter { selectedIDs.contains($0.id) }
         let targets = sel.isEmpty ? [item] : sel
-        let urls    = targets.map(\.url)
-
-        Button("Open")       { onNavigate(item) }
-        if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-        } else if item.isPackage {
-            Button("Show Package Contents") { onBrowseInto(item.url) }
-        }
-        Button("Quick Look") { QuickLookController.shared.show(urls) }
-        Button("Get Info")   { showGetInfoInFinder([item.url]) }
-        Divider()
-        Button("Rename…")   { pendingRenameURL = item.url }
-        Button("Duplicate") { fileOps.duplicate(urls, reload: onReload) }
-        Button(targets.count > 1 ? "Make \(targets.count) Aliases" : "Make Alias") {
-            urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
-        }
-        Button(targets.count > 1 ? "Compress \(targets.count) Items" : "Compress \"\(item.name)\"") {
-            fileOps.compress(urls, reload: onReload)
-        }
-        if targets.count == 1, item.isArchive {
-            Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
-        }
-        Divider()
-        Button("Cut")  { fileOps.cut(urls) }
-        Button("Copy") { fileOps.copy(urls) }
-        Button("Paste") {
-            let dest = (targets.count == 1 && item.isDirectory) ? item.url : currentPath
-            fileOps.paste(to: dest, reload: onReload)
-        }
-        .disabled(fileOps.pasteboardURLs.isEmpty)
-        Divider()
-        Menu("Share") {
-            Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
-            Divider()
-            Button("Share…") { fileOps.showShareSheet(for: urls) }
-        }
-        Divider()
-        Menu("Tags") {
-            TagMenuContent(targets: targets, fileOps: fileOps, onReload: onReload)
-        }
-        Divider()
-        if item.isBrowsableFolder {
-            if favorites.isPinned(item.url) {
-                Button("Remove from Sidebar") { favorites.unpin(item.url) }
-            } else {
-                Button("Add to Sidebar") { favorites.pin(item.url) }
-            }
-        }
-        Button("Show in Finder") {
-            NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-        }
-        Button(targets.count > 1 ? "Copy \(targets.count) Paths" : "Copy Path") {
-            fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
-        }
-        Divider()
-        Button("Move to Trash", role: .destructive) {
-            fileOps.trash(urls, reload: onReload)
-        }
-        Button("Delete Permanently…", role: .destructive) {
-            confirmPermanentDelete(names: targets.map(\.name)) {
-                fileOps.permanentlyDelete(urls, reload: onReload)
-            }
-        }
+        ItemMenuContent(
+            sel: targets,
+            currentPath: currentPath,
+            fileOps: fileOps,
+            favorites: favorites,
+            onNavigate: onNavigate,
+            onBrowseInto: onBrowseInto,
+            onReload: onReload,
+            onRename: { startGroupedRename(item: $0) },
+            onQuickLook: { _ in
+                let urls = targets.map(\.url)
+                if !urls.isEmpty { QuickLookController.shared.show(urls) }
+            },
+            onGetInfo: { _ in showGetInfoInFinder(targets.map(\.url)) },
+            onConfirmDelete: { names, act in confirmPermanentDelete(names: names, onConfirm: act) }
+        )
     }
 }
 
@@ -625,11 +511,109 @@ struct FolderBackgroundMenu: View {
         }
         Divider()
         Button("Open in Terminal") {
-            if let p = currentPath {
-                TerminalApp.open(url: p)
-            } else {
-                NotificationCenter.default.post(name: .openTerminalInCurrentFolder, object: nil)
+            let p = currentPath ?? FileManager.default.homeDirectoryForCurrentUser
+            TerminalLauncher.openTerminal(workingDirectory: p)
+        }
+    }
+}
+
+struct ItemMenuContent: View {
+    let sel: [FileItem]
+    let currentPath: URL
+    @ObservedObject var fileOps: FileOperationsService
+    @ObservedObject var favorites: FavoritesService
+    let onNavigate: (FileItem) -> Void
+    let onBrowseInto: (URL) -> Void
+    let onReload: () -> Void
+    let onRename: (FileItem) -> Void
+    let onQuickLook: (Set<String>) -> Void
+    let onGetInfo: ([FileItem]) -> Void
+    let onConfirmDelete: ([String], @escaping () -> Void) -> Void
+
+    var body: some View {
+        if let item = sel.first {
+            let urls = sel.map(\.url)
+            Group {
+                Button("Open") { onNavigate(item) }
+                if item.isBrowsableFolder {
+                    Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+                } else if item.isPackage {
+                    Button("Show Package Contents") { onBrowseInto(item.url) }
+                }
+                Button("Open in Terminal") {
+                    let target = item.isDirectory ? item.url : currentPath
+                    TerminalLauncher.openTerminal(workingDirectory: target)
+                }
+                Divider()
+                Button("Quick Look") { onQuickLook(Set(sel.map(\.id))) }
+                Button("Get Info")   { onGetInfo(sel) }
+                Divider()
+                Button("Rename…")    { onRename(item) }
+                Button(sel.count > 1 ? "Duplicate \(sel.count) Items" : "Duplicate") {
+                    fileOps.duplicate(urls, reload: onReload)
+                }
+                Button(sel.count > 1 ? "Make \(sel.count) Aliases" : "Make Alias") {
+                    urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
+                }
             }
+            Group {
+                Button(sel.count > 1 ? "Compress \(sel.count) Items" : "Compress \"\(item.name)\"") {
+                    fileOps.compress(urls, reload: onReload)
+                }
+                if sel.count == 1 && item.isArchive {
+                    Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
+                }
+                Divider()
+                Button("Cut") { fileOps.cut(urls) }
+                Button("Copy") { fileOps.copy(urls) }
+                Button("Paste") {
+                    let dest = (sel.count == 1 && item.isDirectory) ? item.url : currentPath
+                    fileOps.paste(to: dest, reload: onReload)
+                }
+                .disabled(fileOps.pasteboardURLs.isEmpty)
+                Divider()
+                Menu("Share") {
+                    Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
+                    Divider()
+                    Button("Share…") { fileOps.showShareSheet(for: urls) }
+                }
+                Divider()
+                Menu("Tags") {
+                    TagMenuContent(targets: sel, fileOps: fileOps, onReload: onReload)
+                }
+            }
+            Group {
+                Divider()
+                if item.isDirectory {
+                    if favorites.isPinned(item.url) {
+                        Button("Remove from Sidebar") { favorites.unpin(item.url) }
+                    } else {
+                        Button("Add to Sidebar") { favorites.pin(item.url) }
+                    }
+                }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
+                }
+                Button(sel.count > 1 ? "Copy \(sel.count) Paths" : "Copy Path") {
+                    fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
+                }
+                Divider()
+                Button("Move to Trash", role: .destructive) {
+                    fileOps.trash(urls, reload: onReload)
+                }
+                Button("Delete Permanently…", role: .destructive) {
+                    onConfirmDelete(sel.map(\.name)) {
+                        fileOps.permanentlyDelete(urls, reload: onReload)
+                    }
+                }
+            }
+        } else {
+            Button("Paste") { fileOps.paste(to: currentPath, reload: onReload) }
+                .disabled(fileOps.pasteboardURLs.isEmpty)
+            if fileOps.canUndo { Button("Undo") { fileOps.undo() } }
+            if fileOps.canRedo { Button("Redo") { fileOps.redo() } }
+            Divider()
+            Button("Refresh") { onReload() }
         }
     }
 }
