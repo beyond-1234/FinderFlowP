@@ -138,6 +138,11 @@ class FileOperationsService: ObservableObject {
         lastActionFeedback = ActionFeedback(icon: "scissors", message: "Cut \(label)")
     }
 
+    func cancelCut() {
+        clipboardURLs = []
+        isCut = false
+    }
+
     private func writeToPasteboard(_ urls: [URL]) {
         let pb = NSPasteboard.general
         pb.clearContents()

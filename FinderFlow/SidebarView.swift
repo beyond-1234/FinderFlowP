@@ -2,12 +2,13 @@ import SwiftUI
 
 enum SidebarItem: Hashable {
     case location(URL)
+    case drive(URL)
     case pinned(URL)
     case recent(URL)
 
     var folderURL: URL {
         switch self {
-        case .location(let url), .pinned(let url), .recent(let url):
+        case .location(let url), .drive(let url), .pinned(let url), .recent(let url):
             return url
         }
     }
@@ -62,6 +63,23 @@ struct SidebarView: View {
                 ForEach(systemLocations, id: \.self) { url in
                     SidebarRow(url: url)
                         .tag(SidebarItem.location(url))
+                }
+            }
+
+            // ── Drives & Devices (Windows/Dolphin style) ───────────────────
+            if !mountedVolumes.isEmpty {
+                Section("Drives & Locations") {
+                    ForEach(mountedVolumes) { vol in
+                        VolumeSidebarRow(volume: vol)
+                            .tag(SidebarItem.drive(vol.url))
+                            .contextMenu {
+                                if vol.isRemovable {
+                                    Button("Eject \"\(vol.name)\"") {
+                                        unmountVolume(vol.url)
+                                    }
+                                }
+                            }
+                    }
                 }
             }
 
@@ -125,6 +143,45 @@ struct SidebarView: View {
         ].compactMap { $0 }
     }
 
+    private var mountedVolumes: [MountedVolumeInfo] {
+        let keys: [URLResourceKey] = [
+            .volumeNameKey,
+            .volumeIsRemovableKey,
+            .volumeIsInternalKey,
+            .volumeAvailableCapacityKey,
+            .volumeTotalCapacityKey
+        ]
+        guard let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) else {
+            return []
+        }
+        return urls.compactMap { url in
+            guard let vals = try? url.resourceValues(forKeys: Set(keys)),
+                  let name = vals.volumeName,
+                  let total = vals.volumeTotalCapacity, total > 0 else {
+                return nil
+            }
+            let avail = Int64(vals.volumeAvailableCapacity ?? 0)
+            let isRemovable = vals.volumeIsRemovable ?? false
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            return MountedVolumeInfo(
+                name: name,
+                url: url,
+                isRemovable: isRemovable,
+                totalBytes: Int64(total),
+                availableBytes: avail,
+                icon: icon
+            )
+        }
+    }
+
+    private func unmountVolume(_ url: URL) {
+        NSWorkspace.shared.unmountAndEjectDevice(at: url) { error in
+            if let error = error {
+                print("Failed to unmount: \(error)")
+            }
+        }
+    }
+
     private func loadRecent() {
         recentFolders = (UserDefaults.standard.stringArray(forKey: "recentFolders") ?? [])
             .compactMap { URL(fileURLWithPath: $0) }
@@ -179,5 +236,65 @@ struct SidebarRow: View {
             Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
                 .resizable().frame(width: 16, height: 16)
         }
+    }
+}
+
+struct MountedVolumeInfo: Hashable, Identifiable {
+    var id: String { url.path }
+    let name: String
+    let url: URL
+    let isRemovable: Bool
+    let totalBytes: Int64
+    let availableBytes: Int64
+    let icon: NSImage
+
+    var usagePercent: Double {
+        guard totalBytes > 0 else { return 0 }
+        return Double(totalBytes - availableBytes) / Double(totalBytes)
+    }
+
+    var availableString: String {
+        ByteCountFormatter.string(fromByteCount: availableBytes, countStyle: .file)
+    }
+
+    var totalString: String {
+        ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+    }
+}
+
+struct VolumeSidebarRow: View {
+    let volume: MountedVolumeInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Image(nsImage: volume.icon)
+                    .resizable()
+                    .frame(width: 16, height: 16)
+                Text(volume.name)
+                    .lineLimit(1)
+                    .font(.body)
+                Spacer()
+                if volume.isRemovable {
+                    Image(systemName: "eject.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if volume.totalBytes > 0 {
+                ProgressView(value: volume.usagePercent)
+                    .progressViewStyle(.linear)
+                HStack {
+                    Text("\(volume.availableString) free")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Total \(volume.totalString)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 2)
     }
 }

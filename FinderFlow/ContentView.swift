@@ -40,6 +40,10 @@ struct ContentView: View {
     @State private var toastItem:        ToastPayload?
     @State private var errorMsg:         String?
     @State private var reloadGeneration: UInt = 0
+    @State private var backStack: [URL] = []
+    @State private var forwardStack: [URL] = []
+    @State private var isNavigatingHistory = false
+    @State private var mouseMonitor: Any?
 
     // Derived selected item for preview
     private var selectedItem: FileItem? {
@@ -155,6 +159,7 @@ struct ContentView: View {
             UserPreferences.migrateBrowseDefaultsIfNeeded()
             reload()
             watchOpenFolder()
+            attachMouseMonitor()
             if !didShowFirstRun {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     showFirstRun = true
@@ -167,9 +172,17 @@ struct ContentView: View {
                 if pending != currentPath { currentPath = pending }
             }
         }
+        .onDisappear {
+            removeMouseMonitor()
+        }
         // Don't clear the icon cache on every navigation — NSCache evicts under
         // memory pressure automatically; keeping icons warm makes navigation fast.
-        .onChange(of: currentPath)   { _, _  in
+        .onChange(of: currentPath) { oldPath, newPath in
+            if !isNavigatingHistory {
+                backStack.append(oldPath)
+                forwardStack.removeAll()
+            }
+            isNavigatingHistory = false
             // Instant feedback: clear stale listing so navigation doesn't look frozen
             // while the background reload runs.
             rawFiles = []
@@ -323,6 +336,14 @@ struct ContentView: View {
                 .keyboardShortcut("v", modifiers: .command).hidden()
             Button("") { trashSelected() }
                 .keyboardShortcut(.delete, modifiers: .command).hidden()
+            Button("") { trashSelected() }
+                .keyboardShortcut(.delete, modifiers: []).hidden()
+            Button("") { goUp() }
+                .keyboardShortcut(.upArrow, modifiers: .option).hidden()
+            Button("") { goBack() }
+                .keyboardShortcut("[", modifiers: .command).hidden()
+            Button("") { goForward() }
+                .keyboardShortcut("]", modifiers: .command).hidden()
         }
     }
 
@@ -504,6 +525,58 @@ struct ContentView: View {
     }
 
     // MARK: - Helpers
+
+    // MARK: - WinFiles Navigation & Mouse Helpers
+
+    private func goBack() {
+        guard let prev = backStack.popLast() else { return }
+        isNavigatingHistory = true
+        forwardStack.append(currentPath)
+        currentPath = prev
+    }
+
+    private func goForward() {
+        guard let next = forwardStack.popLast() else { return }
+        isNavigatingHistory = true
+        backStack.append(currentPath)
+        currentPath = next
+    }
+
+    private func goUp() {
+        let parent = currentPath.deletingLastPathComponent()
+        if parent != currentPath {
+            currentPath = parent
+        }
+    }
+
+    private func attachMouseMonitor() {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { event in
+            switch event.buttonNumber {
+            case 3: // 鼠标侧键后退
+                goBack()
+                return nil
+            case 4: // 鼠标侧键前进
+                goForward()
+                return nil
+            case 2: // 滚轮中键
+                if let folder = selectedFolderURL {
+                    NSWorkspace.shared.open(folder)
+                    return nil
+                }
+            default:
+                break
+            }
+            return event
+        }
+    }
+
+    private func removeMouseMonitor() {
+        if let m = mouseMonitor {
+            NSEvent.removeMonitor(m)
+            mouseMonitor = nil
+        }
+    }
 
     /// Fast path when the row's `FileItem` is already loaded — no extra disk stat.
     private func navigateItem(_ item: FileItem) {

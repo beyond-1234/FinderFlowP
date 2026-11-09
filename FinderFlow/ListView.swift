@@ -25,6 +25,7 @@ struct ListView: View {
     @State private var renameText:      String = ""
     @State private var renameCancelled: Bool   = false
     @FocusState private var renameActive: Bool
+    @State private var keyMonitor: Any?
 
     var body: some View {
         if groupBy != .none {
@@ -78,6 +79,7 @@ struct ListView: View {
                     TagDotsView(colors: item.tagColors, size: 10)
                         .allowsHitTesting(false)
                 }
+                .opacity(fileOps.isCut && fileOps.clipboardURLs.contains(item.url) ? 0.45 : 1.0)
                 .contentShape(Rectangle())
                 .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
             }
@@ -130,10 +132,16 @@ struct ListView: View {
                   let item = files.first(where: { $0.id == id }) else { return }
             commitRename(for: item)
         }
-        .onAppear { syncSortOrder() }
+        .onAppear {
+            syncSortOrder()
+            attachKeyboardMonitor()
+        }
+        .onDisappear {
+            removeKeyboardMonitor()
+        }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
-                FolderBackgroundMenu()
+                FolderBackgroundMenu(currentPath: currentPath)
             } else {
                 contextMenu(for: ids)
             }
@@ -176,6 +184,54 @@ struct ListView: View {
         }
     }
 
+    // MARK: - WinFiles Keyboard Monitor
+
+    private func attachKeyboardMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // When editing text (renaming or search field), let normal keyboard flow through
+            if let responder = NSApp.keyWindow?.firstResponder,
+               responder is NSTextField || responder is NSTextView {
+                return event
+            }
+            guard renamingID == nil else { return event }
+
+            switch event.keyCode {
+            case 36: // Enter -> Open selection
+                if let firstID = selectedIDs.first, let item = files.first(where: { $0.id == firstID }) {
+                    onNavigate(item)
+                    return nil
+                }
+            case 120: // F2 -> Rename
+                if let firstID = selectedIDs.first, let item = files.first(where: { $0.id == firstID }) {
+                    startRename(item: item)
+                    return nil
+                }
+            case 51: // Delete / Backspace -> Trash
+                let sel = files.filter { selectedIDs.contains($0.id) }
+                if !sel.isEmpty {
+                    fileOps.trash(sel.map(\.url), reload: onReload)
+                    return nil
+                }
+            case 53: // Escape -> Cancel Cut
+                if fileOps.isCut {
+                    fileOps.cancelCut()
+                    return nil
+                }
+            default:
+                break
+            }
+            return event
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let monitor = keyMonitor {
+            NSEvent.removeMonitor(monitor)
+            keyMonitor = nil
+        }
+    }
+
     // MARK: - Inline rename helpers
 
     func startRename(item: FileItem) {
@@ -212,6 +268,10 @@ struct ListView: View {
                 Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
             } else if item.isPackage {
                 Button("Show Package Contents") { onBrowseInto(item.url) }
+            }
+            Button("Open in Terminal") {
+                let target = item.isDirectory ? item.url : currentPath
+                TerminalApp.open(url: target)
             }
             Divider()
             Button("Quick Look")         { quickLook(ids: ids) }
@@ -369,7 +429,7 @@ struct GroupedListView: View {
         .listStyle(.inset)
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
-                FolderBackgroundMenu()
+                FolderBackgroundMenu(currentPath: currentPath)
             } else {
                 if let id = ids.first, let item = files.first(where: { $0.id == id }) {
                     listContextMenu(item: item)
@@ -554,12 +614,22 @@ struct DateSectionHeader: View {
 }
 
 struct FolderBackgroundMenu: View {
+    var currentPath: URL? = nil
+
     var body: some View {
         Button("New Folder") {
             NotificationCenter.default.post(name: .createNewFolder, object: nil)
         }
         Button("New File") {
             NotificationCenter.default.post(name: .createNewFile, object: nil)
+        }
+        Divider()
+        Button("Open in Terminal") {
+            if let p = currentPath {
+                TerminalApp.open(url: p)
+            } else {
+                NotificationCenter.default.post(name: .openTerminalInCurrentFolder, object: nil)
+            }
         }
     }
 }

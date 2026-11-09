@@ -58,6 +58,33 @@ enum FileDragSupport {
         }
         return out
     }
+
+    // MARK: - WinFiles Volume & Drag Operations
+
+    /// Check if two URLs belong to the same volume
+    static func isSameVolume(source: URL, destination: URL) -> Bool {
+        guard let sVol = try? source.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier,
+              let dVol = try? destination.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier else {
+            return false
+        }
+        return sVol.isEqual(dVol)
+    }
+
+    /// Determine drop operation based on keyboard modifiers and volume locality:
+    /// - Option + Command: Link (Symlink)
+    /// - Option: Force Copy (+)
+    /// - Command: Force Move
+    /// - None: Move if same volume, Copy if cross volume
+    static func dragOperation(modifiers: NSEvent.ModifierFlags, source: URL, destination: URL) -> NSDragOperation {
+        if modifiers.contains(.option) && modifiers.contains(.command) {
+            return .link
+        } else if modifiers.contains(.option) {
+            return .copy
+        } else if modifiers.contains(.command) {
+            return .move
+        }
+        return isSameVolume(source: source, destination: destination) ? .move : .copy
+    }
 }
 
 // MARK: - SwiftUI convenience
