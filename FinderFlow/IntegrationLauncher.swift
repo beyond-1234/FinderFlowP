@@ -114,10 +114,12 @@ enum IntegrationLauncher {
         let open = Process()
         open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
 
-        if let bundleID {
-            open.arguments = ["-b", bundleID, "--args"] + arguments
-        } else if let appURL {
+        // Prefer the app path: `-b` requires the bundle ID to be registered with
+        // LaunchServices, which fails for apps that were never launched from Finder.
+        if let appURL {
             open.arguments = ["-a", appURL.path, "--args"] + arguments
+        } else if let bundleID {
+            open.arguments = ["-b", bundleID, "--args"] + arguments
         } else {
             return
         }
