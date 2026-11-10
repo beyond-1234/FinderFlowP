@@ -25,10 +25,18 @@ final class MouseRouter: ObservableObject {
     @Published var openIntent: String?
 
     private var monitor: Any?
+    /// The window this router serves, used to scope highlight repaints.
+    private weak var activeWindow: NSWindow?
     private var orderedIDs: [String] = []
     private var currentSelection: Set<String> = []
     private var lastAnchorID: String?
 
+
+    /// Bind the router to a window. Highlight repaints are scoped to it so a second
+    /// window's cells are never touched.
+    func bind(to window: NSWindow?) {
+        activeWindow = window
+    }
 
     func start() {
         guard monitor == nil else { return }
@@ -60,7 +68,7 @@ final class MouseRouter: ObservableObject {
         if ids.count == 1 { lastAnchorID = ids.first }
         // Keep the AppKit-painted highlights in step when the selection changes from
         // anywhere other than the mouse router (keyboard, Cmd+A, reveal, undo…).
-        ItemHitRegistry.shared.applyHighlight(ids)
+        ItemHitRegistry.shared.applyHighlight(ids, in: activeWindow)
     }
 
     // MARK: - Event handling
@@ -183,7 +191,7 @@ final class MouseRouter: ObservableObject {
             table.window?.displayIfNeeded()
         } else {
             // Icon view: no NSTableView, so the cells draw the highlight themselves.
-            ItemHitRegistry.shared.applyHighlight(ids)
+            ItemHitRegistry.shared.applyHighlight(ids, in: activeWindow)
         }
 
         selectionIntent = ids

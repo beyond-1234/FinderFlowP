@@ -512,6 +512,10 @@ struct ContentView: View {
     private var routedBrowser: some View {
         browserContent
             .browserAreaMarker()
+            .background(WindowBinder { window in
+                // Scope this window's router (and its highlight repaints) to the window.
+                mouseRouter.bind(to: window)
+            })
             .onAppear {
                 mouseRouter.updateItems(displayFiles)
                 mouseRouter.syncSelection(selectedIDs)

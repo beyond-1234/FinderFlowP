@@ -136,19 +136,26 @@ final class ItemHitRegistry {
     /// Paint the highlight with AppKit and flush it before the event returns.
     /// This is what makes right-click selection feel immediate in the icon view,
     /// where there is no NSTableView to do the drawing for us.
-    func applyHighlight(_ ids: Set<String>) {
+    /// Paint highlights for `ids`, restricted to `window`.
+    ///
+    /// The window scope matters now that several windows can be open: without it,
+    /// a selection change in one window would run over every cell in every window and
+    /// clear or set highlights that belong to a different folder.
+    func applyHighlight(_ ids: Set<String>, in window: NSWindow?) {
         pruneDetached()
-        var dirtyWindow: NSWindow?
+        var targetWindow: NSWindow?
 
         for (_, view) in entries {
+            guard let viewWindow = view.window,
+                  window == nil || viewWindow === window else { continue }
             let shouldHighlight = view.itemID.map { ids.contains($0) } ?? false
             if view.isHighlighted != shouldHighlight {
                 view.isHighlighted = shouldHighlight
-                if dirtyWindow == nil { dirtyWindow = view.window }
+                if targetWindow == nil { targetWindow = viewWindow }
             }
         }
 
-        dirtyWindow?.displayIfNeeded()
+        targetWindow?.displayIfNeeded()
     }
 }
 
