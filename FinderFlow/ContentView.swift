@@ -91,9 +91,15 @@ struct ContentView: View {
                     currentPath:    $currentPath,
                     selectedURL:    selectedFolderURL,
                     selectedCount:  selectedIDs.count,
+                    canGoBack:      !backStack.isEmpty,
+                    canGoForward:   !forwardStack.isEmpty,
                     onCreateFolder: promptAndCreateFolder,
                     onCreateFile:   promptAndCreateFile,
-                    onDelete:       confirmAndDeleteSelected,
+                    onDelete:       trashSelected,
+                    onCopy:         copySelected,
+                    onCut:          cutSelected,
+                    onGoBack:       goBack,
+                    onGoForward:    goForward,
                     fileOps:        fileOps,
                     viewMode:       viewModeBinding,
                     sortField:      sortFieldBinding,
@@ -387,6 +393,20 @@ struct ContentView: View {
         let name = tf.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         folderService.createFile(at: dest, name: name)
+    }
+
+    // MARK: - Clipboard actions
+
+    func copySelected() {
+        let urls = displayFiles.filter { selectedIDs.contains($0.id) }.map(\.url)
+        guard !urls.isEmpty else { return }
+        fileOps.copy(urls)
+    }
+
+    func cutSelected() {
+        let urls = displayFiles.filter { selectedIDs.contains($0.id) }.map(\.url)
+        guard !urls.isEmpty else { return }
+        fileOps.cut(urls)
     }
 
     // MARK: - Permanent delete with confirmation

@@ -81,7 +81,7 @@ struct IconsView: View {
                 }
                 Button("Open in Terminal") {
                     let target = item.isDirectory ? item.url : currentPath
-                    TerminalLauncher.openTerminal(workingDirectory: target)
+                    openTerminalAt(target)
                 }
                 Divider()
                 Button("Quick Look") { QuickLookController.shared.show(urls) }

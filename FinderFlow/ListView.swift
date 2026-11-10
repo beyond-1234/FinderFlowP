@@ -506,7 +506,7 @@ struct FolderBackgroundMenu: View {
         Divider()
         Button("Open in Terminal") {
             let p = currentPath ?? FileManager.default.homeDirectoryForCurrentUser
-            TerminalLauncher.openTerminal(workingDirectory: p)
+            openTerminalAt(p)
         }
     }
 }
@@ -538,7 +538,7 @@ struct ItemMenuContent: View {
                     }
                     Button("Open in Terminal") {
                         let target = item.isDirectory ? item.url : currentPath
-                        TerminalLauncher.openTerminal(workingDirectory: target)
+                        openTerminalAt(target)
                     }
                     Divider()
                     Button("Quick Look") { onQuickLook(Set(sel.map(\.id))) }

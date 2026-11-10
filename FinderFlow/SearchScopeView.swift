@@ -2,13 +2,26 @@ import SwiftUI
 import AppKit
 
 enum SearchScope: String, CaseIterable {
-    case thisFolder          = "This Folder"
-    case thisFolderRecursive = "This Folder & Subfolders"
+    case thisFolder          = "Current Folder"
+    case thisFolderRecursive = "Current Folder + Subfolders"
     case desktop             = "Desktop"
     case documents           = "Documents"
     case downloads           = "Downloads"
     case home                = "Home Folder"
-    case entireMac           = "Entire Mac"
+    case entireMac           = "Whole Mac"
+
+    /// Short label shown on the compact scope menu button.
+    var shortLabel: String {
+        switch self {
+        case .thisFolder:          return "Current Folder"
+        case .thisFolderRecursive: return "With Subfolders"
+        case .desktop:             return "Desktop"
+        case .documents:           return "Documents"
+        case .downloads:           return "Downloads"
+        case .home:                return "Home"
+        case .entireMac:           return "Whole Mac"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -18,7 +31,20 @@ enum SearchScope: String, CaseIterable {
         case .documents:           return "doc"
         case .downloads:           return "arrow.down.circle"
         case .home:                return "house"
-        case .entireMac:           return "magnifyingglass"
+        case .entireMac:           return "externaldrive.connected.to.line.below"
+        }
+    }
+
+    /// One-line explanation shown in the menu, so the option is self-explanatory.
+    var detail: String {
+        switch self {
+        case .thisFolder:          return "Only files directly in the open folder"
+        case .thisFolderRecursive: return "The open folder and everything inside it"
+        case .desktop:             return "Your Desktop folder"
+        case .documents:           return "Your Documents folder"
+        case .downloads:           return "Your Downloads folder"
+        case .home:                return "Your whole home folder"
+        case .entireMac:           return "Spotlight across every volume"
         }
     }
 
@@ -44,25 +70,11 @@ enum SearchScope: String, CaseIterable {
 struct SearchScopeView: View {
     let currentPath: URL
     @ObservedObject var searchEngine: SearchEngine
+
     var body: some View {
         HStack(spacing: 8) {
 
-            // ── Scope picker ──────────────────────────────────────────────
-            Picker("Scope", selection: $searchEngine.selectedScope) {
-                ForEach(SearchScope.allCases, id: \.self) { scope in
-                    Label(scope.rawValue, systemImage: scope.icon).tag(scope)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(maxWidth: 200)
-            // Re-run search immediately when scope changes
-            .onChange(of: searchEngine.selectedScope) { _ in
-                guard !searchEngine.query.isEmpty else { return }
-                searchEngine.search(
-                    in: searchEngine.selectedScope.baseURL(currentPath: currentPath))
-            }
-
-            // ── Search field ──────────────────────────────────────────────
+            // ── Search field (first: this is what you use most) ────────────
             HStack(spacing: 4) {
                 if searchEngine.isSearching {
                     ProgressView()
@@ -74,33 +86,30 @@ struct SearchScopeView: View {
                         .font(.caption)
                 }
 
-                TextField("Name or .ext (e.g. .pdf)…", text: $searchEngine.query)
+                TextField("Search names… (e.g. report, .pdf)", text: $searchEngine.query)
                     .textFieldStyle(.plain)
                     .resetsCursorOnExit()
-                    .onSubmit {
-                        searchEngine.search(
-                            in: searchEngine.selectedScope.baseURL(currentPath: currentPath))
-                    }
+                    .onSubmit { runSearch() }
                     .onChange(of: searchEngine.query) { newValue in
                         if newValue.isEmpty {
-                            searchEngine.results    = []
+                            searchEngine.results     = []
                             searchEngine.isSearching = false
                         } else {
-                            searchEngine.search(
-                                in: searchEngine.selectedScope.baseURL(currentPath: currentPath))
+                            runSearch()
                         }
                     }
 
                 if !searchEngine.query.isEmpty {
                     Button {
-                        searchEngine.query      = ""
-                        searchEngine.results    = []
+                        searchEngine.query       = ""
+                        searchEngine.results     = []
                         searchEngine.isSearching = false
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
+                    .help("Clear search")
                 }
             }
             .padding(.horizontal, 8)
@@ -111,6 +120,48 @@ struct SearchScopeView: View {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
             )
+            .frame(maxWidth: 420)
+
+            // ── Where to search (after the field it modifies) ──────────────
+            Menu {
+                Picker("Search in", selection: $searchEngine.selectedScope) {
+                    ForEach(SearchScope.allCases, id: \.self) { scope in
+                        Label {
+                            Text(scope.rawValue)
+                        } icon: {
+                            Image(systemName: scope.icon)
+                        }
+                        .tag(scope)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: searchEngine.selectedScope.icon)
+                        .font(.caption2)
+                    Text(searchEngine.selectedScope.shortLabel)
+                        .font(.system(size: 11))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Search in: \(searchEngine.selectedScope.rawValue) — \(searchEngine.selectedScope.detail)")
+            .onChange(of: searchEngine.selectedScope) { _ in
+                guard !searchEngine.query.isEmpty else { return }
+                runSearch()
+            }
 
             // ── Result count badge ────────────────────────────────────────
             if !searchEngine.query.isEmpty && !searchEngine.isSearching {
@@ -119,12 +170,14 @@ struct SearchScopeView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize()
             }
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
-        // Re-run "This Folder" search when user navigates to a different folder
+        // Re-run "Current Folder" searches when the user navigates elsewhere.
         .onChange(of: currentPath) { newPath in
             guard !searchEngine.query.isEmpty,
                   searchEngine.selectedScope == .thisFolder ||
@@ -133,5 +186,9 @@ struct SearchScopeView: View {
             searchEngine.search(
                 in: searchEngine.selectedScope.baseURL(currentPath: newPath))
         }
+    }
+
+    private func runSearch() {
+        searchEngine.search(in: searchEngine.selectedScope.baseURL(currentPath: currentPath))
     }
 }

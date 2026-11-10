@@ -1,28 +1,27 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Detected IDE/tool state
-
-struct InstalledApps {
-    var vscode:     NSImage? = nil   // nil → not installed, don't show button
-    var vscodePath: String?  = nil   // resolved app path for VS Code
-    var claude:     NSImage? = nil
-    var claudeCLI:  String?  = nil   // path to `claude` CLI
-    var cursor:     NSImage? = nil
-    var cursorPath: String?  = nil   // resolved app path for Cursor
-    var codex:      NSImage? = nil
-    var codexPath:  String?  = nil
-}
-
 // MARK: - Toolbar
+//
+// Button sizing rule: every toolbar control is a fixed 26x24 hit area so icons line
+// up on the same baseline instead of looking alternately wide and narrow. Anything
+// that is inherently wider (sort menu, view switcher) keeps its own fixed width.
+
+private let kToolbarButtonSize = CGSize(width: 26, height: 24)
 
 struct QuickActionsToolbar: View {
     @Binding var currentPath:    URL
-    let selectedURL:             URL?   // selected folder, nil → use currentPath for IDEs
-    let selectedCount:           Int    // enables delete button
+    let selectedURL:             URL?   // selected folder, nil → currentPath
+    let selectedCount:           Int
+    let canGoBack:               Bool
+    let canGoForward:            Bool
     let onCreateFolder:          () -> Void
     let onCreateFile:            () -> Void
     let onDelete:                () -> Void
+    let onCopy:                  () -> Void
+    let onCut:                   () -> Void
+    let onGoBack:                () -> Void
+    let onGoForward:             () -> Void
     @ObservedObject var fileOps: FileOperationsService
     @Binding var viewMode:       ViewMode
     @Binding var sortField:      SortField
@@ -32,458 +31,229 @@ struct QuickActionsToolbar: View {
     @Binding var folderOrder:    FolderOrder
     @Binding var showPreview:    Bool
     @Binding var showColumnTree: Bool
-    let onReload: () -> Void
+    let onReload:                () -> Void
 
-    @State private var apps = InstalledApps()
+    @ObservedObject private var integrations = IntegrationStore.shared
 
     private var openTarget: URL { selectedURL ?? currentPath }
 
     var body: some View {
-        HStack(spacing: 6) {
-
-            // ── Group 1: Basic File Actions ──────────────────────────────
+        HStack(spacing: 4) {
             Group {
-                ToolbarActionButton(icon: "folder.badge.plus", label: "New Folder") { onCreateFolder() }
-                ToolbarActionButton(icon: "doc.badge.plus",    label: "New Text File") { onCreateFile() }
-
-                Divider().frame(height: 20)
-
-                ToolbarActionButton(icon: "arrow.uturn.backward", label: "Undo") { fileOps.undo() }
-                    .disabled(!fileOps.canUndo)
-                ToolbarActionButton(icon: "arrow.uturn.forward", label: "Redo") { fileOps.redo() }
-                    .disabled(!fileOps.canRedo)
-
-                Divider().frame(height: 20)
-
-                ToolbarActionButton(icon: "doc.on.clipboard", label: "Paste") {
-                    fileOps.paste(to: currentPath, reload: onReload)
-                }
-                .disabled(fileOps.pasteboardURLs.isEmpty)
-
-                ToolbarActionButton(icon: "doc.on.clipboard.fill", label: "Copy Path") {
-                    fileOps.copyPath(currentPath.path)
-                }
-
-                ToolbarActionButton(icon: "trash", label: "Delete Permanently…") { onDelete() }
-                    .disabled(selectedCount == 0)
-
-                Divider().frame(height: 20)
+                creationGroup
+                separator
+                historyGroup
+                separator
+                clipboardGroup
+                separator
+                toolGroup
+                separator
+                viewGroup
             }
 
-            // ── Group 2: External Tools & IDEs ────────────────────────────
-            Group {
-                ToolbarActionButton(icon: "terminal", label: "Open Terminal") {
-                    openInTerminal(openTarget)
-                }
+            Spacer(minLength: 8)
 
-                if let icon = apps.vscode {
-                    AppIconToolbarButton(appIcon: icon, label: "Open in VS Code") {
-                        openInVSCode(openTarget)
-                    }
-                }
+            sortGroup
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+        .onAppear { integrations.resolveIfNeeded() }
+    }
 
-                if let icon = apps.claude {
-                    AppIconToolbarButton(appIcon: icon, label: "Open in Claude Code (new terminal window)") {
-                        openInClaudeCode(openTarget)
-                    }
-                }
+    private var separator: some View {
+        Divider().frame(height: 18)
+    }
 
-                if let icon = apps.cursor {
-                    AppIconToolbarButton(appIcon: icon, label: "Open in Cursor") {
-                        openInCursor(openTarget)
-                    }
-                }
+    // MARK: - Groups
 
-                if let icon = apps.codex {
-                    AppIconToolbarButton(appIcon: icon, label: "Open in Codex") {
-                        openInCodex(openTarget)
-                    }
-                }
+    private var creationGroup: some View {
+        HStack(spacing: 4) {
+            ToolbarActionButton(icon: "folder.badge.plus", label: "New Folder") { onCreateFolder() }
+            ToolbarActionButton(icon: "doc.badge.plus", label: "New File") { onCreateFile() }
+        }
+    }
 
-                Divider().frame(height: 20)
+    private var historyGroup: some View {
+        HStack(spacing: 4) {
+            ToolbarActionButton(icon: "chevron.left", label: "Back") { onGoBack() }
+                .disabled(!canGoBack)
+            ToolbarActionButton(icon: "chevron.right", label: "Forward") { onGoForward() }
+                .disabled(!canGoForward)
+            ToolbarActionButton(icon: "arrow.up", label: "Go to Parent Folder") {
+                let p = currentPath.deletingLastPathComponent()
+                if p != currentPath { currentPath = p }
             }
+            .disabled(currentPath.pathComponents.count <= 1)
+            ToolbarActionButton(icon: "arrow.clockwise", label: "Refresh") { onReload() }
+        }
+    }
 
-            // ── Group 3: View Toggles & Navigation ────────────────────────
-            Group {
-                Toggle(isOn: $showHidden) {
-                    Label("Hidden Files", systemImage: showHidden ? "eye" : "eye.slash")
-                        .labelStyle(.iconOnly)
-                }
-                .toggleStyle(.button).buttonStyle(.borderless)
-                .help(showHidden ? "Hide hidden files" : "Show hidden files")
+    private var clipboardGroup: some View {
+        HStack(spacing: 4) {
+            ToolbarActionButton(icon: "doc.on.doc", label: "Copy") { onCopy() }
+                .disabled(selectedCount == 0)
+            ToolbarActionButton(icon: "scissors", label: "Cut") { onCut() }
+                .disabled(selectedCount == 0)
+            ToolbarActionButton(icon: "doc.on.clipboard", label: "Paste") {
+                fileOps.paste(to: currentPath, reload: onReload)
+            }
+            .disabled(fileOps.pasteboardURLs.isEmpty)
+            ToolbarActionButton(icon: "trash", label: "Move to Trash") { onDelete() }
+                .disabled(selectedCount == 0)
+            ToolbarActionButton(icon: "arrow.uturn.backward", label: "Undo") { fileOps.undo() }
+                .disabled(!fileOps.canUndo)
+        }
+    }
 
-                Menu {
-                    Picker("Group By", selection: $groupBy) {
-                        ForEach(GroupBy.allCases) { g in
-                            Text(g.menuTitle).tag(g)
-                        }
-                    }
-                } label: {
-                    Image(systemName: groupBy == .none ? "rectangle.3.group" : "rectangle.3.group.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(groupBy == .none ? Color.primary : Color.accentColor)
-                }
-                .menuStyle(.borderlessButton)
-                .frame(width: 28)
-                .help(groupBy == .none ? "Group By" : "Grouped by \(groupBy.menuTitle)")
-
-                Toggle(isOn: $showPreview) {
-                    Label("File Preview", systemImage: showPreview ? "doc.richtext.fill" : "doc.richtext")
-                        .labelStyle(.iconOnly)
-                }
-                .toggleStyle(.button).buttonStyle(.borderless)
-                .help(showPreview ? "Hide preview panel" : "Show file preview panel")
-
-                if viewMode == .columns {
-                    Toggle(isOn: $showColumnTree) {
-                        Label("Show Tree", systemImage: showColumnTree ? "sidebar.left" : "rectangle.split.1x2")
-                            .labelStyle(.iconOnly)
-                    }
-                    .toggleStyle(.button).buttonStyle(.borderless)
-                    .help(showColumnTree ? "Hide folder tree — show current folder only"
-                                         : "Show full folder tree from root")
-                }
-
-                ToolbarActionButton(icon: "arrow.clockwise", label: "Refresh") { onReload() }
-
-                Divider().frame(height: 20)
-
-                ToolbarActionButton(icon: "arrow.up", label: "Go Up") {
-                    let p = currentPath.deletingLastPathComponent()
-                    if p != currentPath { currentPath = p }
+    private var toolGroup: some View {
+        HStack(spacing: 4) {
+            ForEach(integrations.items(of: .terminal)) { item in
+                AppIconToolbarButton(appIcon: item.icon, label: "Open in \(item.integration.name)") {
+                    IntegrationLauncher.open(folder: openTarget, using: item)
                 }
             }
-
-            Spacer()
-
-            // ── Sort / folder order ───────────────────────────────────────
-            HStack(spacing: 2) {
-                Picker("Sort", selection: $sortField) {
-                    ForEach(SortField.allCases) { f in Text(f.rawValue).tag(f) }
+            ForEach(integrations.items(of: .editor)) { item in
+                AppIconToolbarButton(appIcon: item.icon, label: "Open in \(item.integration.name)") {
+                    IntegrationLauncher.open(folder: openTarget, using: item)
                 }
-                .pickerStyle(.menu).frame(maxWidth: 138).help("Sort by")
-
-                Button { sortAscending.toggle() } label: {
-                    Image(systemName: sortAscending ? "arrow.up" : "arrow.down").font(.caption)
-                }
-                .buttonStyle(.borderless)
-                .help(sortAscending ? "Ascending" : "Descending")
-
-                Menu {
-                    Picker("Folders", selection: $folderOrder) {
-                        ForEach(FolderOrder.allCases) { o in
-                            Text(o.rawValue).tag(o)
-                        }
-                    }
-                } label: {
-                    Image(systemName: folderOrder == .foldersFirst ? "folder.fill"
-                          : (folderOrder == .filesFirst ? "doc.fill" : "arrow.up.arrow.down"))
-                        .font(.caption)
-                }
-                .menuStyle(.borderlessButton)
-                .frame(width: 28)
-                .help("Folder / file order: \(folderOrder.rawValue)")
             }
+            ForEach(integrations.items(of: .agent)) { item in
+                AppIconToolbarButton(appIcon: item.icon, label: "Run \(item.integration.name) here") {
+                    IntegrationLauncher.open(folder: openTarget, using: item)
+                }
+            }
+        }
+    }
 
-            Divider().frame(height: 20)
-
-            // ── View mode ─────────────────────────────────────────────────
+    private var viewGroup: some View {
+        HStack(spacing: 4) {
             Picker("View", selection: $viewMode) {
                 ForEach(ViewMode.allCases, id: \.self) { mode in
                     Image(systemName: mode.icon).tag(mode)
                 }
             }
-            .pickerStyle(.segmented).frame(width: 96).help("Switch view")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.bar)
-        .overlay(alignment: .bottom) { Divider() }
-        .onAppear {
-        // Show IDE buttons instantly from last-known-good cache,
-        // then re-detect in background in case anything changed.
-        loadCachedApps()
-        detectInstalledApps()
-    }
-    }
+            .pickerStyle(.segmented)
+            .frame(width: 92)
+            .help("Switch view")
 
-    // MARK: - App detection cache (UserDefaults, 6-hour TTL)
+            ToolbarToggleButton(isOn: $showHidden,
+                                on: "eye",
+                                off: "eye.slash",
+                                help: "Show hidden files")
 
-    private struct AppCache: Codable {
-        let timestamp:  Double   // timeIntervalSince1970
-        let vscodePath: String?
-        let claudeCLI:  String?
-        let claudeApp:  String?
-        let cursorPath: String?
-        let codexPath:  String?
-        let codexCLI:   String?
-    }
-    private static let kCacheKey = "FF.appDetectionCache.v2"
-    private static let kCacheTTL: Double = 6 * 3600   // 6 hours
-
-    private func loadCachedApps() {
-        guard let data = UserDefaults.standard.data(forKey: Self.kCacheKey),
-              let c    = try? JSONDecoder().decode(AppCache.self, from: data),
-              Date().timeIntervalSince1970 - c.timestamp < Self.kCacheTTL
-        else { return }
-
-        let fm = FileManager.default
-        var a  = InstalledApps()
-
-        if let p = c.vscodePath, fm.fileExists(atPath: p) {
-            a.vscodePath = p
-            a.vscode     = NSWorkspace.shared.icon(forFile: p)
-        }
-        if let cli = c.claudeCLI, fm.fileExists(atPath: cli) {
-            a.claudeCLI = cli
-            if let app = c.claudeApp, fm.fileExists(atPath: app) {
-                a.claude = NSWorkspace.shared.icon(forFile: app)
-            } else {
-                a.claude = NSImage(systemSymbolName: "brain.head.profile",
-                                   accessibilityDescription: "Claude Code")
-            }
-        }
-        if let p = c.cursorPath, fm.fileExists(atPath: p) {
-            a.cursorPath = p
-            a.cursor     = NSWorkspace.shared.icon(forFile: p)
-        }
-        if let p = c.codexPath, fm.fileExists(atPath: p) {
-            a.codexPath = p
-            a.codex     = NSWorkspace.shared.icon(forFile: p)
-        } else if let cli = c.codexCLI, fm.fileExists(atPath: cli) {
-            a.codex = NSImage(systemSymbolName: "terminal",
-                              accessibilityDescription: "Codex")
-        }
-        apps = a
-    }
-
-    private func saveCachedApps(_ detected: InstalledApps, claudeApp: String?) {
-        let c = AppCache(
-            timestamp:  Date().timeIntervalSince1970,
-            vscodePath: detected.vscodePath,
-            claudeCLI:  detected.claudeCLI,
-            claudeApp:  claudeApp,
-            cursorPath: detected.cursorPath,
-            codexPath:  detected.codexPath,
-            codexCLI:   nil
-        )
-        if let data = try? JSONEncoder().encode(c) {
-            UserDefaults.standard.set(data, forKey: Self.kCacheKey)
-        }
-    }
-
-    // MARK: - App detection (background queue, no UI impact)
-
-    private func detectInstalledApps() {
-        DispatchQueue.global(qos: .background).async {
-            var detected = InstalledApps()
-
-            // Returns the first matching app URL from bundle IDs or direct paths
-            func appURL(bundleIDs: [String], appPaths: [String] = []) -> URL? {
-                for bid in bundleIDs {
-                    if let u = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
-                        return u
+            Menu {
+                Picker("Group By", selection: $groupBy) {
+                    ForEach(GroupBy.allCases) { g in
+                        Text(g.menuTitle).tag(g)
                     }
                 }
-                for path in appPaths where FileManager.default.fileExists(atPath: path) {
-                    return URL(fileURLWithPath: path)
+            } label: {
+                Image(systemName: groupBy == .none ? "rectangle.3.group" : "rectangle.3.group.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(groupBy == .none ? Color.primary : Color.accentColor)
+                    .frame(width: kToolbarButtonSize.width, height: kToolbarButtonSize.height)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(groupBy == .none ? "Group By" : "Grouped by \(groupBy.menuTitle)")
+
+            ToolbarToggleButton(isOn: $showPreview,
+                                on: "sidebar.trailing",
+                                off: "sidebar.trailing",
+                                help: "File preview panel")
+
+            if viewMode == .columns {
+                ToolbarToggleButton(isOn: $showColumnTree,
+                                    on: "sidebar.left",
+                                    off: "rectangle.split.1x2",
+                                    help: "Folder tree in column view")
+            }
+        }
+    }
+
+    private var sortGroup: some View {
+        HStack(spacing: 4) {
+            Picker("Sort", selection: $sortField) {
+                ForEach(SortField.allCases) { f in Text(f.rawValue).tag(f) }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 118)
+            .help("Sort by")
+
+            ToolbarActionButton(icon: sortAscending ? "arrow.up" : "arrow.down",
+                                label: sortAscending ? "Ascending" : "Descending") {
+                sortAscending.toggle()
+            }
+
+            Menu {
+                Picker("Folders", selection: $folderOrder) {
+                    ForEach(FolderOrder.allCases) { o in
+                        Text(o.rawValue).tag(o)
+                    }
                 }
-                return nil
+            } label: {
+                Image(systemName: folderOrder == .foldersFirst ? "folder.fill"
+                      : (folderOrder == .filesFirst ? "doc.fill" : "arrow.up.arrow.down"))
+                    .font(.system(size: 12))
+                    .frame(width: kToolbarButtonSize.width, height: kToolbarButtonSize.height)
+                    .contentShape(Rectangle())
             }
-
-            func iconForApp(_ url: URL) -> NSImage {
-                NSWorkspace.shared.icon(forFile: url.path)
-            }
-
-            // Find a CLI via login shell `which` — handles nvm, homebrew, etc.
-            func whichCLI(_ name: String) -> String? {
-                let p = Process()
-                p.executableURL = URL(fileURLWithPath: "/bin/zsh")
-                p.arguments = ["-l", "-c", "which \(name) 2>/dev/null"]
-                let pipe = Pipe()
-                p.standardOutput = pipe
-                p.standardError  = Pipe()
-                guard (try? p.run()) != nil else { return nil }
-                p.waitUntilExit()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let result = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                guard !result.isEmpty, FileManager.default.fileExists(atPath: result) else { return nil }
-                return result
-            }
-
-            // Also check known fixed paths (fast, no shell spawn)
-            func fixedCLI(_ paths: [String]) -> String? {
-                paths.first { FileManager.default.fileExists(atPath: $0) }
-            }
-
-            // ── VS Code ───────────────────────────────────────────────────
-            // Only show VS Code button when the VS Code *app* is installed (not CLI-only),
-            // so we're sure we open VS Code and not Cursor's `code` shim.
-            if let url = appURL(bundleIDs: ["com.microsoft.VSCode"],
-                                appPaths: ["/Applications/Visual Studio Code.app"]) {
-                detected.vscode     = iconForApp(url)
-                detected.vscodePath = url.path
-            }
-
-            // ── Claude Code ───────────────────────────────────────────────
-            // Only show the button when the `claude` CLI is actually installed.
-            // Showing it without the CLI just confuses users (Terminal opens
-            // but immediately shows "command not found").
-            let claudeFixed = fixedCLI([
-                "/usr/local/bin/claude",
-                "/opt/homebrew/bin/claude",
-                "\(NSHomeDirectory())/.local/bin/claude",
-                "\(NSHomeDirectory())/.claude/local/claude",
-                "\(NSHomeDirectory())/.volta/bin/claude",
-            ])
-            let claudeCLIPath = claudeFixed ?? whichCLI("claude")
-            let claudeAppURL  = appURL(
-                bundleIDs: ["com.anthropic.claudefordesktop",
-                            "com.anthropic.claude-mac",
-                            "com.anthropic.claude"],
-                appPaths:  ["/Applications/Claude.app"]
-            )
-            if let cliPath = claudeCLIPath {
-                detected.claudeCLI = cliPath
-                // Use Desktop app icon when available, else brain SF-symbol
-                detected.claude = claudeAppURL.map { iconForApp($0) }
-                    ?? NSImage(systemSymbolName: "brain.head.profile",
-                               accessibilityDescription: "Claude Code")
-            }
-
-            // ── Cursor ───────────────────────────────────────────────────
-            if let url = appURL(bundleIDs: ["com.todesktop.230313mzl4w4u92",
-                                            "com.cursor.macos",
-                                            "com.cursor.cursor"],
-                                appPaths: ["/Applications/Cursor.app"]) {
-                detected.cursor     = iconForApp(url)
-                detected.cursorPath = url.path
-            }
-
-            // ── OpenAI Codex ─────────────────────────────────────────────
-            if let url = appURL(bundleIDs: ["com.openai.codex",
-                                            "com.openai.codex-desktop"],
-                                appPaths: ["/Applications/Codex.app",
-                                           "/Applications/OpenAI Codex.app"]) {
-                detected.codex     = iconForApp(url)
-                detected.codexPath = url.path
-            } else {
-                // Codex may be CLI-only
-                let codexCLI = fixedCLI(["/usr/local/bin/codex", "/opt/homebrew/bin/codex"])
-                    ?? whichCLI("codex")
-                if codexCLI != nil {
-                    detected.codex = NSImage(systemSymbolName: "terminal",
-                                             accessibilityDescription: "Codex")
-                }
-            }
-
-            let claudeAppPath = claudeAppURL?.path
-            DispatchQueue.main.async {
-                apps = detected
-                saveCachedApps(detected, claudeApp: claudeAppPath)
-            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Folder / file order: \(folderOrder.rawValue)")
         }
     }
-
-    // MARK: - Open helpers
-
-    private func openInTerminal(_ url: URL) {
-        TerminalLauncher.openTerminal(workingDirectory: url)
-    }
-
-    private func openInVSCode(_ url: URL) {
-        // Prefer opening via app bundle so we guarantee VS Code, not Cursor's `code` shim
-        if let appPath = apps.vscodePath {
-            NSWorkspace.shared.open(
-                [url],
-                withApplicationAt: URL(fileURLWithPath: appPath),
-                configuration: NSWorkspace.OpenConfiguration()
-            )
-            return
-        }
-    }
-
-    private func openInClaudeCode(_ url: URL) {
-        // Claude Code is a TUI — open a terminal session (login shell, so PATH
-        // is fully configured including nvm / homebrew / npm) and run `claude`.
-        // Use the detected full CLI path when available, otherwise the bare
-        // `claude` command which the login shell resolves via PATH.
-        let cliSafe = apps.claudeCLI.map { TerminalLauncher.shellQuoted($0) } ?? "claude"
-        let command = "cd \(TerminalLauncher.shellQuoted(url.path)) && \(cliSafe) ."
-        runTUI(command, in: url, hint: "Run `claude .` in the opened terminal")
-    }
-
-    private func openInCursor(_ url: URL) {
-        // Prefer app bundle — guarantees Cursor opens, not VS Code's code shim
-        if let appPath = apps.cursorPath {
-            NSWorkspace.shared.open(
-                [url],
-                withApplicationAt: URL(fileURLWithPath: appPath),
-                configuration: NSWorkspace.OpenConfiguration()
-            )
-            return
-        }
-        // Fallback: known Cursor CLIs
-        let cliCandidates = [
-            "/usr/local/bin/cursor",
-            "/opt/homebrew/bin/cursor",
-            "/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
-        ]
-        if let cli = cliCandidates.first(where: { FileManager.default.fileExists(atPath: $0) }) {
-            let p = Process()
-            p.executableURL = URL(fileURLWithPath: cli)
-            p.arguments = [url.path]
-            try? p.run()
-        }
-    }
-
-    private func openInCodex(_ url: URL) {
-        // App bundle takes priority
-        if let appPath = apps.codexPath {
-            NSWorkspace.shared.open(
-                [url],
-                withApplicationAt: URL(fileURLWithPath: appPath),
-                configuration: NSWorkspace.OpenConfiguration()
-            )
-            return
-        }
-        // CLI (TUI) fallback
-        let cliCandidates = ["/usr/local/bin/codex", "/opt/homebrew/bin/codex"]
-        if let cli = cliCandidates.first(where: { FileManager.default.fileExists(atPath: $0) }) {
-            let command = "cd \(TerminalLauncher.shellQuoted(url.path)) && \(TerminalLauncher.shellQuoted(cli))"
-            runTUI(command, in: url, hint: "Run `codex` in the opened terminal")
-        }
-    }
-
-    /// Run a TUI command in the user's configured terminal. Terminals that
-    /// can't take commands through AppleScript (Alacritty, kitty, a custom app)
-    /// get a plain window at the folder instead, plus a toast with the command.
-    private func runTUI(_ command: String, in url: URL, hint: String) {
-        if TerminalLauncher.runCommand(command) { return }
-        TerminalLauncher.openTerminal(workingDirectory: url)
-        fileOps.lastActionFeedback = ActionFeedback(icon: "terminal", message: hint)
-    }
-
-    // MARK: - Shared helpers (launching lives in TerminalLauncher)
 }
 
-// MARK: - Toolbar button with SF Symbol icon
+// MARK: - Uniform toolbar buttons
 
 struct ToolbarActionButton: View {
-    let icon: String; let label: String; let action: () -> Void
+    let icon: String
+    let label: String
+    let action: () -> Void
+
     var body: some View {
-        Button(action: action) { Label(label, systemImage: icon).labelStyle(.iconOnly) }
-            .buttonStyle(.borderless).help(label)
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .frame(width: kToolbarButtonSize.width, height: kToolbarButtonSize.height)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(label)
     }
 }
 
-// MARK: - Toolbar button with real app icon
+struct ToolbarToggleButton: View {
+    @Binding var isOn: Bool
+    let on: String
+    let off: String
+    let help: String
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            Image(systemName: isOn ? on : off)
+                .font(.system(size: 12))
+                .foregroundStyle(isOn ? Color.accentColor : Color.primary)
+                .frame(width: kToolbarButtonSize.width, height: kToolbarButtonSize.height)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+    }
+}
 
 struct AppIconToolbarButton: View {
     let appIcon: NSImage
-    let label:   String
-    let action:  () -> Void
+    let label: String
+    let action: () -> Void
 
     var body: some View {
         Button(action: action) {
@@ -491,6 +261,8 @@ struct AppIconToolbarButton: View {
                 .resizable()
                 .interpolation(.high)
                 .frame(width: 16, height: 16)
+                .frame(width: kToolbarButtonSize.width, height: kToolbarButtonSize.height)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
         .help(label)

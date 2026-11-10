@@ -499,7 +499,7 @@ struct ColumnPane: View {
                 }
                 Button("Open in Terminal") {
                     let target = item.isDirectory ? item.url : directory
-                    TerminalLauncher.openTerminal(workingDirectory: target)
+                    openTerminalAt(target)
                 }
                 Divider()
                 Button("Quick Look") { QuickLookController.shared.show([item.url]) }
