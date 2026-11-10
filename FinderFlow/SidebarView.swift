@@ -216,7 +216,12 @@ struct SidebarView: View {
         openWindowBox.open(url)
     }
 
-    private var userPlaces: [UserPlace] { UserPlace.standard() }
+    /// Computed once. This is a plain stored value now: as a computed property it ran
+    /// a FileManager existence check for every user folder on every layout pass, which
+    /// made window resizing stutter.
+    private static let cachedPlaces: [UserPlace] = UserPlace.standard()
+
+    private var userPlaces: [UserPlace] { Self.cachedPlaces }
 
     private func refreshVolumes() {
         DispatchQueue.global(qos: .utility).async {
@@ -309,20 +314,38 @@ struct SidebarView: View {
 struct PlaceRow: View {
     let place: UserPlace
 
+    /// Resolved once per place and cached. Looking up the localised name and the
+    /// folder icon hits the disk, and this row is re-evaluated on every layout pass
+    /// while the window is being resized.
+    private static var nameCache: [String: String] = [:]
+    private static var iconCache: [String: NSImage] = [:]
+
     private var displayName: String {
-        // macOS localises standard folders via the URL resource; fall back to our label.
+        if let cached = Self.nameCache[place.id] { return cached }
+        let name: String
         if let localized = try? place.url.resourceValues(forKeys: [.localizedNameKey])
             .localizedName, !localized.isEmpty {
-            return localized
+            name = localized
+        } else {
+            name = place.title
         }
-        return place.title
+        Self.nameCache[place.id] = name
+        return name
+    }
+
+    private var icon: NSImage {
+        if let cached = Self.iconCache[place.id] { return cached }
+        let image = NSWorkspace.shared.icon(forFile: place.url.path)
+        image.size = NSSize(width: 16, height: 16)
+        Self.iconCache[place.id] = image
+        return image
     }
 
     var body: some View {
         Label {
             Text(displayName).lineLimit(1)
         } icon: {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: place.url.path))
+            Image(nsImage: icon)
                 .resizable()
                 .frame(width: 16, height: 16)
         }
@@ -331,14 +354,29 @@ struct PlaceRow: View {
 
 struct SidebarRow: View {
     let url: URL
+
     private var displayName: String {
         url.lastPathComponent.isEmpty ? "Macintosh HD" : url.lastPathComponent
     }
+
+    /// Sidebar rows are re-evaluated on every layout pass (window resize!), and
+    /// NSWorkspace.icon hits the disk. Keep the resolved icon per path.
+    private static var iconCache: [String: NSImage] = [:]
+
+    private var icon: NSImage {
+        let key = url.path
+        if let cached = Self.iconCache[key] { return cached }
+        let image = NSWorkspace.shared.icon(forFile: key)
+        image.size = NSSize(width: 16, height: 16)
+        Self.iconCache[key] = image
+        return image
+    }
+
     var body: some View {
         Label {
             Text(displayName).lineLimit(1)
         } icon: {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+            Image(nsImage: icon)
                 .resizable().frame(width: 16, height: 16)
         }
     }

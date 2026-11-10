@@ -235,14 +235,17 @@ struct ContentView: View {
         .onChange(of: sortFieldRaw) { _ in
             rawFiles = sortedItems(rawFiles, by: sortField, ascending: sortAscending, folderOrder: folderOrder)
             resortSearchFiles()
+            refreshDisplayFiles()
         }
         .onChange(of: sortAscending) { _ in
             rawFiles = sortedItems(rawFiles, by: sortField, ascending: sortAscending, folderOrder: folderOrder)
             resortSearchFiles()
+            refreshDisplayFiles()
         }
         .onChange(of: folderOrderRaw) { _ in
             rawFiles = sortedItems(rawFiles, by: sortField, ascending: sortAscending, folderOrder: folderOrder)
             resortSearchFiles()
+            refreshDisplayFiles()
         }
         .onChange(of: showHidden) { _ in reload() }
         .onReceive(NotificationCenter.default.publisher(for: .refreshDirectory)) { note in
@@ -261,6 +264,8 @@ struct ContentView: View {
         }
         // Select an item after paste/duplicate (no rename dialog needed)
         .onChange(of: rawFiles) { newFiles in
+            refreshDisplayFiles()
+            refreshTagNames()
             guard let url = pendingSelectURL,
                   let item = newFiles.first(where: { $0.url == url }) else { return }
             selectedIDs    = [item.id]
@@ -269,6 +274,9 @@ struct ContentView: View {
                 scrollTableView(toRow: displayFiles.firstIndex(where: { $0.id == item.id }) ?? 0)
             }
         }
+        .onChange(of: activeTagFilter) { _ in refreshDisplayFiles() }
+        .onChange(of: searchDisplayFiles) { _ in refreshDisplayFiles() }
+        .onChange(of: tagDisplayFiles) { _ in refreshDisplayFiles() }
     }
 
     var body: some View {
@@ -386,6 +394,28 @@ struct ContentView: View {
             Button("") { goForward() }
                 .keyboardShortcut("]", modifiers: .command).hidden()
         }
+        // Kept in a second group: more than ten children in one ViewBuilder block
+        // exceeds the tuple limit.
+        Group {
+            Button("") { selectAll() }
+                .keyboardShortcut("a", modifiers: .command).hidden()
+            Button("") { clearSelection() }
+                .keyboardShortcut(.escape, modifiers: []).hidden()
+        }
+    }
+
+    // MARK: - Selection
+
+    /// Select every visible item (⌘A). Previously nothing handled this shortcut, so
+    /// SwiftUI's default (select-all on the focused AppKit view) did nothing useful.
+    func selectAll() {
+        let ids = Set(displayFiles.map(\.id))
+        guard !ids.isEmpty, ids != selectedIDs else { return }
+        selectedIDs = ids
+    }
+
+    func clearSelection() {
+        if !selectedIDs.isEmpty { selectedIDs.removeAll() }
     }
 
     // MARK: - Pre-named creation dialogs
@@ -554,13 +584,35 @@ struct ContentView: View {
     // Tags used by items in the current folder — shown in the sidebar Tags section.
     // Only shows tags that actually exist here, so the sidebar stays clean.
     // When a tag is tapped, TagService searches Mac-wide via Spotlight.
-    private var usedTagNames: [String] {
-        Array(Set(rawFiles.flatMap(\.tagNames))).sorted()
+    // Cached: this feeds the sidebar, which re-renders on every layout pass (window
+    // resizing). Recomputing the set for every file on each frame caused stutter.
+    private var usedTagNames: [String] { cachedTagNames }
+
+    @State private var cachedTagNames: [String] = []
+
+    private func refreshTagNames() {
+        let names = Array(Set(rawFiles.flatMap(\.tagNames))).sorted()
+        if names != cachedTagNames { cachedTagNames = names }
     }
 
     // MARK: - Display list
 
-    private var displayFiles: [FileItem] {
+    /// Cached result of the tag/search pipeline. As a computed property this re-ran
+    /// `sortedItems` on every body evaluation — that is, on every frame during a window
+    /// resize — which is what made resizing stutter on large folders.
+    private var displayFiles: [FileItem] { cachedDisplayFiles }
+
+    @State private var cachedDisplayFiles: [FileItem] = []
+
+    private func refreshDisplayFiles() {
+        let computed = computeDisplayFiles()
+        if computed.count != cachedDisplayFiles.count
+            || computed.first?.id != cachedDisplayFiles.first?.id {
+            cachedDisplayFiles = computed
+        }
+    }
+
+    private func computeDisplayFiles() -> [FileItem] {
         // Tag filter: Mac-wide Spotlight matches UNION current-folder items carrying
         // the color. The local pass is what guarantees correctness — Spotlight only
         // finds files with a real kMDItemUserTags value, while the local match also
@@ -800,6 +852,8 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 guard gen == reloadGeneration else { return }
                 rawFiles = items
+                refreshDisplayFiles()
+                refreshTagNames()
                 then?()
             }
         }
