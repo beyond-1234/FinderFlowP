@@ -127,6 +127,8 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 StatusBarView(files: displayFiles, selectedIDs: selectedIDs, currentPath: currentPath)
+
+                OperationProgressPanel()
             }
             .background(ArrowCursorArea())   // resets IBeam / resize cursor leaving search bar or column handles
             .resetsCursorOnEnter()           // clears the divider's stuck resize cursor on entry
@@ -140,11 +142,20 @@ struct ContentView: View {
                         ))
                         .allowsHitTesting(false)
                         .id(toast.id)
-                        .onAppear {
-                            let captured = toast.id
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                                withAnimation(.easeOut(duration: 0.25)) {
-                                    if toastItem?.id == captured { toastItem = nil }
+                        // `.task(id:)` is cancelled and restarted whenever the toast
+                        // identity changes, and runs on the main actor. The previous
+                        // `.onAppear` + one-shot timer could leak: if another toast
+                        // replaced this one, the captured-id check failed and nothing
+                        // ever cleared the panel, so it stayed on screen forever.
+                        .task(id: toast.id) {
+                            do {
+                                try await Task.sleep(nanoseconds: 2_500_000_000)
+                            } catch {
+                                return   // cancelled: a newer toast took over
+                            }
+                            await MainActor.run {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    if toastItem?.id == toast.id { toastItem = nil }
                                 }
                             }
                         }
@@ -718,9 +729,19 @@ struct ContentView: View {
 
     // MARK: - Toast
 
+    @State private var toastCookie = 0
+
     private func showToast(_ feedback: ActionFeedback) {
+        toastCookie &+= 1
+        let cookie = toastCookie
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             toastItem = ToastPayload(icon: feedback.icon, message: feedback.message)
+        }
+        // Belt-and-braces dismissal: whatever happens to the view hierarchy, the
+        // toast cannot outlive this timer.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            guard toastCookie == cookie else { return }
+            withAnimation(.easeOut(duration: 0.2)) { toastItem = nil }
         }
     }
 

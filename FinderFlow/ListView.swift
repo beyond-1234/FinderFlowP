@@ -532,87 +532,12 @@ struct ItemMenuContent: View {
         Group {
             if let item = sel.first {
                 let urls = sel.map(\.url)
-                Group {
-                    Button("Open") { onNavigate(item) }
-                    if item.isBrowsableFolder {
-                        Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-                    } else if item.isPackage {
-                        Button("Show Package Contents") { onBrowseInto(item.url) }
-                    }
-                    Button("Open in Terminal") {
-                        let target = item.isDirectory ? item.url : currentPath
-                        openTerminalAt(target)
-                    }
-                    Divider()
-                    Button("Quick Look") { onQuickLook(Set(sel.map(\.id))) }
-                    Button("Get Info")   { onGetInfo(sel) }
-                    Divider()
-                    Button("Rename…")    { onRename(item) }
-                    Button(sel.count > 1 ? "Duplicate \(sel.count) Items" : "Duplicate") {
-                        fileOps.duplicate(urls, reload: onReload)
-                    }
-                    Button(sel.count > 1 ? "Make \(sel.count) Aliases" : "Make Alias") {
-                        urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
-                    }
-                }
-                Group {
-                    Button(sel.count > 1 ? "Compress \(sel.count) Items" : "Compress \"\(item.name)\"") {
-                        fileOps.compress(urls, reload: onReload)
-                    }
-                    if sel.count == 1 && item.isArchive {
-                        Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
-                    }
-                    Divider()
-                    Button("Cut") { fileOps.cut(urls) }
-                    Button("Copy") { fileOps.copy(urls) }
-                    Button("Paste") {
-                        let dest = (sel.count == 1 && item.isDirectory) ? item.url : currentPath
-                        fileOps.paste(to: dest, reload: onReload)
-                    }
-                    .disabled(fileOps.pasteboardURLs.isEmpty)
-                    Divider()
-                    Menu("Share") {
-                        Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
-                        Divider()
-                        Button("Share…") { fileOps.showShareSheet(for: urls) }
-                    }
-                    Divider()
-                    Menu("Tags") {
-                        TagMenuContent(targets: sel, fileOps: fileOps, onReload: onReload)
-                    }
-                }
-                Group {
-                    Divider()
-                    if item.isDirectory {
-                        if favorites.isPinned(item.url) {
-                            Button("Remove from Sidebar") { favorites.unpin(item.url) }
-                        } else {
-                            Button("Add to Sidebar") { favorites.pin(item.url) }
-                        }
-                    }
-                    Button("Show in Finder") {
-                        NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-                    }
-                    Button(sel.count > 1 ? "Copy \(sel.count) Paths" : "Copy Path") {
-                        fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
-                    }
-                    Divider()
-                    Button("Move to Trash", role: .destructive) {
-                        fileOps.trash(urls, reload: onReload)
-                    }
-                    Button("Delete Permanently…", role: .destructive) {
-                        onConfirmDelete(sel.map(\.name)) {
-                            fileOps.permanentlyDelete(urls, reload: onReload)
-                        }
-                    }
-                }
+                primarySection(item: item, urls: urls)
+                archiveSection(item: item, urls: urls)
+                clipboardSection(item: item, urls: urls)
+                destinationSection(item: item, urls: urls)
             } else {
-                Button("Paste") { fileOps.paste(to: currentPath, reload: onReload) }
-                    .disabled(fileOps.pasteboardURLs.isEmpty)
-                if fileOps.canUndo { Button("Undo") { fileOps.undo() } }
-                if fileOps.canRedo { Button("Redo") { fileOps.redo() } }
-                Divider()
-                Button("Refresh") { onReload() }
+                emptySpaceSection
             }
         }
         .onAppear {
@@ -620,5 +545,108 @@ struct ItemMenuContent: View {
                 onSelect?(Set(sel.map(\.id)))
             }
         }
+    }
+
+    // Split into small computed sections: one giant ViewBuilder expression made the
+    // type checker give up ("failed to produce diagnostic").
+    @ViewBuilder
+    private func primarySection(item: FileItem, urls: [URL]) -> some View {
+        Button("Open") { onNavigate(item) }
+        if item.isBrowsableFolder {
+            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+        } else if item.isPackage {
+            Button("Show Package Contents") { onBrowseInto(item.url) }
+        }
+        Button("Open in Terminal") {
+            let target = item.isDirectory ? item.url : currentPath
+            openTerminalAt(target)
+        }
+        Divider()
+        Button("Quick Look") { onQuickLook(Set(sel.map(\.id))) }
+        Button("Get Info")   { onGetInfo(sel) }
+        Divider()
+        Button("Rename…")    { onRename(item) }
+        Button(sel.count > 1 ? "Duplicate \(sel.count) Items" : "Duplicate") {
+            fileOps.duplicate(urls, reload: onReload)
+        }
+        Button(sel.count > 1 ? "Make \(sel.count) Aliases" : "Make Alias") {
+            urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
+        }
+    }
+
+    @ViewBuilder
+    private func archiveSection(item: FileItem, urls: [URL]) -> some View {
+        Button(sel.count > 1 ? "Compress \(sel.count) Items…" : "Compress “\(item.name)”…") {
+            ArchiveDialogPresenter.shared.present(urls: urls, fileOps: fileOps, reload: onReload)
+        }
+        Button("Compress to ZIP") {
+            fileOps.compress(urls, reload: onReload)
+        }
+        if sel.count == 1 && item.isArchive {
+            Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
+        }
+        Divider()
+        Menu("Open With") {
+            OpenWithMenuContent(urls: urls, item: item)
+        }
+    }
+
+    @ViewBuilder
+    private func clipboardSection(item: FileItem, urls: [URL]) -> some View {
+        Divider()
+        Button("Cut") { fileOps.cut(urls) }
+        Button("Copy") { fileOps.copy(urls) }
+        Button("Paste") {
+            let dest = (sel.count == 1 && item.isDirectory) ? item.url : currentPath
+            fileOps.paste(to: dest, reload: onReload)
+        }
+        .disabled(fileOps.pasteboardURLs.isEmpty)
+        Divider()
+        Menu("Share") {
+            Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
+            Divider()
+            Button("Share…") { fileOps.showShareSheet(for: urls) }
+        }
+        Divider()
+        Menu("Tags") {
+            TagMenuContent(targets: sel, fileOps: fileOps, onReload: onReload)
+        }
+    }
+
+    @ViewBuilder
+    private func destinationSection(item: FileItem, urls: [URL]) -> some View {
+        Divider()
+        if item.isDirectory {
+            if favorites.isPinned(item.url) {
+                Button("Remove from Sidebar") { favorites.unpin(item.url) }
+            } else {
+                Button("Add to Sidebar") { favorites.pin(item.url) }
+            }
+        }
+        Button("Show in Finder") {
+            NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
+        }
+        Button(sel.count > 1 ? "Copy \(sel.count) Paths" : "Copy Path") {
+            fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
+        }
+        Divider()
+        Button("Move to Trash", role: .destructive) {
+            fileOps.trash(urls, reload: onReload)
+        }
+        Button("Delete Permanently…", role: .destructive) {
+            onConfirmDelete(sel.map(\.name)) {
+                fileOps.permanentlyDelete(urls, reload: onReload)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var emptySpaceSection: some View {
+        Button("Paste") { fileOps.paste(to: currentPath, reload: onReload) }
+            .disabled(fileOps.pasteboardURLs.isEmpty)
+        if fileOps.canUndo { Button("Undo") { fileOps.undo() } }
+        if fileOps.canRedo { Button("Redo") { fileOps.redo() } }
+        Divider()
+        Button("Refresh") { onReload() }
     }
 }

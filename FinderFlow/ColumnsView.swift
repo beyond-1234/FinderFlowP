@@ -483,80 +483,100 @@ struct ColumnPane: View {
 
     @ViewBuilder
     private func columnContextMenu(item: FileItem) -> some View {
-        Group {
-            Group {
-                Button("Open") {
-                    if item.isBrowsableFolder {
-                        onSelect(item)
-                    } else {
-                        onOpen(item.url)
-                    }
-                }
-                if item.isBrowsableFolder {
-                    Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-                } else if item.isPackage {
-                    Button("Show Package Contents") { onBrowseInto(item.url) }
-                }
-                Button("Open in Terminal") {
-                    let target = item.isDirectory ? item.url : directory
-                    openTerminalAt(target)
-                }
-                Divider()
-                Button("Quick Look") { QuickLookController.shared.show([item.url]) }
-                Button("Get Info")   { showGetInfo(item: item) }
-                Divider()
-                Button("Rename…")    { promptRename(item: item) }
-                Button("Duplicate")  { fileOps.duplicate([item.url], reload: reload) }
-                Button("Make Alias") { fileOps.makeAlias(for: item.url, reload: reload) }
+        let urls = [item.url]
+        columnPrimarySection(item: item)
+        columnArchiveSection(item: item, urls: urls)
+        columnClipboardSection(item: item, urls: urls)
+        columnDestructiveSection(item: item, urls: urls)
+    }
+
+    @ViewBuilder
+    private func columnPrimarySection(item: FileItem) -> some View {
+        Button("Open") {
+            if item.isBrowsableFolder {
+                onSelect(item)
+            } else {
+                onOpen(item.url)
             }
-            Group {
-                Button("Compress \"\(item.name)\"") { fileOps.compress([item.url], reload: reload) }
-                if item.isArchive {
-                    Button("Extract Here") { fileOps.extract(item.url, reload: reload) }
-                }
-                Divider()
-                Button("Cut")   { fileOps.cut([item.url]) }
-                Button("Copy")  { fileOps.copy([item.url]) }
-                Button("Paste") {
-                    let dest = item.isDirectory ? item.url : directory
-                    fileOps.paste(to: dest, reload: reload)
-                }
-                .disabled(fileOps.pasteboardURLs.isEmpty)
-                Divider()
-                Menu("Share") {
-                    Button("AirDrop") { fileOps.shareViaAirDrop([item.url]) }
-                    Divider()
-                    Button("Share…")  { fileOps.showShareSheet(for: [item.url]) }
-                }
-                Divider()
-                Menu("Tags") {
-                    TagMenuContent(targets: [item], fileOps: fileOps, onReload: reload)
-                }
+        }
+        if item.isBrowsableFolder {
+            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+        } else if item.isPackage {
+            Button("Show Package Contents") { onBrowseInto(item.url) }
+        }
+        Button("Open in Terminal") {
+            let target = item.isDirectory ? item.url : directory
+            openTerminalAt(target)
+        }
+        Divider()
+        Button("Quick Look") { QuickLookController.shared.show([item.url]) }
+        Button("Get Info")   { showGetInfo(item: item) }
+        Divider()
+        Button("Rename…")    { promptRename(item: item) }
+        Button("Duplicate")  { fileOps.duplicate([item.url], reload: reload) }
+        Button("Make Alias") { fileOps.makeAlias(for: item.url, reload: reload) }
+    }
+
+    @ViewBuilder
+    private func columnArchiveSection(item: FileItem, urls: [URL]) -> some View {
+        Button("Compress “\(item.name)”…") {
+            ArchiveDialogPresenter.shared.present(urls: urls, fileOps: fileOps, reload: reload)
+        }
+        Button("Compress to ZIP") { fileOps.compress(urls, reload: reload) }
+        if item.isArchive {
+            Button("Extract Here") { fileOps.extract(item.url, reload: reload) }
+        }
+        Divider()
+        Menu("Open With") {
+            OpenWithMenuContent(urls: urls, item: item)
+        }
+    }
+
+    @ViewBuilder
+    private func columnClipboardSection(item: FileItem, urls: [URL]) -> some View {
+        Divider()
+        Button("Cut")   { fileOps.cut(urls) }
+        Button("Copy")  { fileOps.copy(urls) }
+        Button("Paste") {
+            let dest = item.isDirectory ? item.url : directory
+            fileOps.paste(to: dest, reload: reload)
+        }
+        .disabled(fileOps.pasteboardURLs.isEmpty)
+        Divider()
+        Menu("Share") {
+            Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
+            Divider()
+            Button("Share…")  { fileOps.showShareSheet(for: urls) }
+        }
+        Divider()
+        Menu("Tags") {
+            TagMenuContent(targets: [item], fileOps: fileOps, onReload: reload)
+        }
+    }
+
+    @ViewBuilder
+    private func columnDestructiveSection(item: FileItem, urls: [URL]) -> some View {
+        Divider()
+        if item.isDirectory {
+            if favorites.isPinned(item.url) {
+                Button("Remove from Sidebar") { favorites.unpin(item.url) }
+            } else {
+                Button("Add to Sidebar") { favorites.pin(item.url) }
             }
-            Group {
-                Divider()
-                if item.isDirectory {
-                    if favorites.isPinned(item.url) {
-                        Button("Remove from Sidebar") { favorites.unpin(item.url) }
-                    } else {
-                        Button("Add to Sidebar") { favorites.pin(item.url) }
-                    }
-                }
-                Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-                }
-                Button("Copy Path") {
-                    fileOps.copyPath(item.url.path)
-                }
-                Divider()
-                Button("Move to Trash", role: .destructive) {
-                    fileOps.trash([item.url], reload: reload)
-                }
-                Button("Delete Permanently…", role: .destructive) {
-                    confirmPermanentDelete(names: [item.name]) {
-                        fileOps.permanentlyDelete([item.url], reload: reload)
-                    }
-                }
+        }
+        Button("Show in Finder") {
+            NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
+        }
+        Button("Copy Path") {
+            fileOps.copyPath(item.url.path)
+        }
+        Divider()
+        Button("Move to Trash", role: .destructive) {
+            fileOps.trash(urls, reload: reload)
+        }
+        Button("Delete Permanently…", role: .destructive) {
+            confirmPermanentDelete(names: [item.name]) {
+                fileOps.permanentlyDelete(urls, reload: reload)
             }
         }
     }

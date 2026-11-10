@@ -168,43 +168,50 @@ class FileOperationsService: ObservableObject {
         guard !sources.isEmpty, !isBusy else { return }
         let wasCut = isCut
 
-        // Immediate acknowledgement so the action never looks ignored.
+        let job = OperationJob(
+            title: (wasCut ? "Moving " : "Copying ") + describe(sources),
+            detail: destination.lastPathComponent
+        )
+        OperationProgressStore.shared.add(job)
+        job.setTotal(TransferEngine.totalSize(of: sources))
+
+        isBusy = true
         lastActionFeedback = ActionFeedback(icon: "doc.on.clipboard",
                                             message: wasCut ? "Moving…" : "Copying…")
-        isBusy = true
 
         DispatchQueue.global(qos: .userInitiated).async {
             var pasted: [URL] = []
             var failure: Error?
 
-            for src in sources {
-                let dest = self.uniqueURL(for: destination.appendingPathComponent(src.lastPathComponent))
-                do {
-                    if wasCut { try FileManager.default.moveItem(at: src, to: dest) }
-                    else       { try FileManager.default.copyItem(at: src, to: dest) }
-                    pasted.append(dest)
-                } catch {
-                    // Stop on the first failure but keep undo for whatever already
-                    // succeeded — otherwise a partial move would strand files at the
-                    // destination with no way to undo them.
-                    failure = error
-                    break
-                }
+            do {
+                pasted = try TransferEngine.transfer(
+                    sources,
+                    to: destination,
+                    mode: wasCut ? .move : .copy,
+                    job: job,
+                    pathAllocator: { self.uniqueURL(for: $0) }
+                )
+            } catch {
+                failure = error
             }
 
             DispatchQueue.main.async {
                 self.isBusy = false
+
                 if let failure {
-                    self.errorMessage = failure.localizedDescription
+                    job.finish(failed: true, message: failure.localizedDescription)
+                    if !(failure is TransferEngine.TransferError) {
+                        self.errorMessage = failure.localizedDescription
+                    } else {
+                        self.errorMessage = failure.localizedDescription
+                    }
                 }
-                // Nothing pasted (e.g. the very first item failed) — the error is
-                // already surfaced; don't register an empty undo or show a success toast.
+
                 guard !pasted.isEmpty else { reload(); return }
 
                 if wasCut { self.clipboardURLs = []; self.isCut = false }
 
                 if wasCut {
-                    // Move: undo by moving items back to their original locations
                     let pairs = zip(sources, pasted).map { ($0, $1) }
                     self.undoMgr.registerUndo(withTarget: self) { _ in
                         for (orig, dest) in pairs {
@@ -213,7 +220,6 @@ class FileOperationsService: ObservableObject {
                         reload()
                     }
                 } else {
-                    // Copy: undo by removing the copies
                     self.undoMgr.registerUndo(withTarget: self) { _ in
                         pasted.forEach { try? FileManager.default.removeItem(at: $0) }
                         reload()
@@ -229,9 +235,21 @@ class FileOperationsService: ObservableObject {
                     message: (wasCut ? "Moved " : "Pasted ") + label
                 )
                 self.lastOpURL = pasted.first
+                job.finish()
                 reload()
+
+                // Drop finished jobs from the panel shortly after.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                    OperationProgressStore.shared.remove(job)
+                }
             }
         }
+    }
+
+    private func describe(_ urls: [URL]) -> String {
+        urls.count == 1
+            ? "\"\(urls[0].lastPathComponent)\""
+            : "\(urls.count) items"
     }
 
     // MARK: Rename
@@ -328,6 +346,13 @@ class FileOperationsService: ObservableObject {
             return
         }
 
+        let job = OperationJob(title: "Extracting “\(url.lastPathComponent)”",
+                               detail: dest.lastPathComponent)
+        OperationProgressStore.shared.add(job)
+        if let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int64 {
+            job.setTotal(size)
+        }
+
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let entries = try self.listArchiveEntries(url)
@@ -342,24 +367,81 @@ class FileOperationsService: ObservableObject {
                     FileManager.default.fileExists(atPath: dest.appendingPathComponent($0).path)
                 }
                 DispatchQueue.main.async {
-                    if !collisions.isEmpty && !self.confirmExtractOverwrite(collisions) { return }
+                    if !collisions.isEmpty && !self.confirmExtractOverwrite(collisions) {
+                        job.finish(message: "Cancelled")
+                        return
+                    }
                     DispatchQueue.global(qos: .userInitiated).async {
                         do {
                             try self.extractArchive(url, into: dest, replacing: collisions)
-                            DispatchQueue.main.async { reload() }
+                            DispatchQueue.main.async {
+                                job.finish()
+                                reload()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                                    OperationProgressStore.shared.remove(job)
+                                }
+                            }
                         } catch {
-                            DispatchQueue.main.async { self.errorMessage = error.localizedDescription }
+                            DispatchQueue.main.async {
+                                job.finish(failed: true, message: error.localizedDescription)
+                                self.errorMessage = error.localizedDescription
+                            }
                         }
                     }
                 }
             } catch {
-                DispatchQueue.main.async { self.errorMessage = error.localizedDescription }
+                DispatchQueue.main.async {
+                    job.finish(failed: true, message: error.localizedDescription)
+                    self.errorMessage = error.localizedDescription
+                }
             }
         }
     }
 
-    // MARK: - Compress (zip)
+    // MARK: - Compress
 
+    /// Compress with the built-in zipper. Exposed so the archive dialog can call it
+    /// after asking the user for format / level / destination.
+    func compress(_ urls: [URL],
+                  to destination: URL,
+                  using tool: ArchiveTool,
+                  format: ArchiveFormat,
+                  level: ArchiveLevel?,
+                  reload: @escaping () -> Void) {
+        guard let first = urls.first else { return }
+
+        let job = OperationJob(title: "Compressing " + describe(urls),
+                               detail: destination.lastPathComponent)
+        OperationProgressStore.shared.add(job)
+        job.setTotal(TransferEngine.totalSize(of: urls))
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try ArchiveRunner.run(tool: tool,
+                                      format: format,
+                                      level: level,
+                                      urls: urls,
+                                      destination: destination,
+                                      job: job)
+                DispatchQueue.main.async {
+                    job.finish()
+                    reload()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        OperationProgressStore.shared.remove(job)
+                    }
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: destination)
+                DispatchQueue.main.async {
+                    job.finish(failed: true, message: error.localizedDescription)
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+            _ = first
+        }
+    }
+
+    /// Quick, silent .zip next to the selection (the old one-click behaviour).
     func compress(_ urls: [URL], reload: @escaping () -> Void) {
         guard let first = urls.first else { return }
         let base    = first.deletingLastPathComponent()
@@ -372,13 +454,28 @@ class FileOperationsService: ObservableObject {
             errorMessage = "One of these items can't be compressed because its name isn't allowed."
             return
         }
+        let job = OperationJob(title: "Compressing " + describe(urls),
+                               detail: dest.lastPathComponent)
+        OperationProgressStore.shared.add(job)
+        job.setTotal(TransferEngine.totalSize(of: urls))
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                try self.runTool("/usr/bin/zip", arguments, currentDirectory: base)
-                DispatchQueue.main.async { reload() }
+                try self.runTool("/usr/bin/zip", arguments,
+                                 currentDirectory: base,
+                                 progress: { job.advance($0) })
+                DispatchQueue.main.async {
+                    job.finish()
+                    reload()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        OperationProgressStore.shared.remove(job)
+                    }
+                }
             } catch {
                 try? FileManager.default.removeItem(at: dest)
-                DispatchQueue.main.async { self.errorMessage = error.localizedDescription }
+                DispatchQueue.main.async {
+                    job.finish(failed: true, message: error.localizedDescription)
+                    self.errorMessage = error.localizedDescription
+                }
             }
         }
     }
@@ -673,7 +770,10 @@ class FileOperationsService: ObservableObject {
     }
 
     @discardableResult
-    private func runTool(_ launchPath: String, _ arguments: [String], currentDirectory: URL? = nil) throws -> String {
+    private func runTool(_ launchPath: String,
+                         _ arguments: [String],
+                         currentDirectory: URL? = nil,
+                         progress: ((Int64) -> Void)? = nil) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
@@ -706,7 +806,58 @@ class FileOperationsService: ObservableObject {
         guard process.terminationStatus == 0 else {
             throw ArchiveToolError(message: errorText.isEmpty ? "Couldn't read this archive." : errorText)
         }
+        _ = progress
         return output
+    }
+
+    /// Run a tool and report progress by sampling the output file's growing size.
+    /// Archivers have no machine-readable progress on stdout, but the archive they are
+    /// writing does grow, which is enough for a trustworthy bar.
+    @discardableResult
+    func runToolWithProgress(_ launchPath: String,
+                                     _ arguments: [String],
+                                     currentDirectory: URL?,
+                                     outputFile: URL,
+                                     job: OperationJob) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: launchPath)
+        process.arguments = arguments
+        process.currentDirectoryURL = currentDirectory
+        let stderr = Pipe()
+        process.standardError = stderr
+        process.standardOutput = Pipe()
+        try process.run()
+
+        // Sample while the tool runs.
+        var lastSize: Int64 = 0
+        while process.isRunning {
+            Thread.sleep(forTimeInterval: 0.25)
+            if job.isCancelled {
+                process.terminate()
+                break
+            }
+            let size = ((try? FileManager.default
+                .attributesOfItem(atPath: outputFile.path))?[.size] as? Int64) ?? 0
+            if size > lastSize {
+                job.setReportedOutput(size)
+                lastSize = size
+            }
+        }
+        process.waitUntilExit()
+
+        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        let errorText = String(decoding: errData, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if job.isCancelled { throw ArchiveToolError(message: "Cancelled") }
+        guard process.terminationStatus == 0 else {
+            throw ArchiveToolError(message: errorText.isEmpty ? "The archive tool failed." : errorText)
+        }
+        if let size = (try? FileManager.default
+            .attributesOfItem(atPath: outputFile.path)[.size] as? Int64) {
+            job.setReportedOutput(size)
+        }
+        return errorText
     }
 }
 
