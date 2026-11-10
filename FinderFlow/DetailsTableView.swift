@@ -82,8 +82,7 @@ struct DetailsTableView: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
-        scrollView.drawsBackground = true
-        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.drawsBackground = false
 
         context.coordinator.tableView = tableView
         context.coordinator.rebuildColumns()

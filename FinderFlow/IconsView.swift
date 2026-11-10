@@ -51,7 +51,6 @@ struct IconsView: View {
                     .padding(.vertical, 12)
                 }
             }
-            .background(Color(nsColor: .textBackgroundColor))
             .contextMenu { FolderBackgroundMenu() }
             .background(
                 Button("") { quickLook() }
