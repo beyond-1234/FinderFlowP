@@ -9,18 +9,67 @@ import AppKit
 // for the double-click window (~300ms) before reporting a single click, which makes
 // clicking feel laggy.
 //
-// Instead every item cell registers a transparent NSView (ItemHitView) that knows its
-// own item id. A single NSEvent monitor then resolves the clicked item geometrically
-// from the live view geometry, so selection feedback happens on mouse-DOWN with no
-// gesture disambiguation delay — and the exact same code works for list, grouped
-// list, and icon views.
+// Every item cell registers a transparent NSView (ItemHitView) that knows its own
+// item id. A single NSEvent monitor resolves the clicked item geometrically from live
+// view geometry, so selection feedback happens on mouse-DOWN with no gesture
+// disambiguation delay — identical behaviour for list, grouped list and icon views.
+//
+// The same view also draws the selection highlight itself with AppKit. That matters
+// for right-click: while an NSMenu is tracking, SwiftUI's renderer can defer its own
+// update (its display link only runs in the default run loop mode), so a
+// SwiftUI-drawn highlight appears late. AppKit drawing inside the mouse-down event is
+// flushed by displayIfNeeded() immediately, so the highlight is always in time.
 
 final class ItemHitView: NSView {
     var itemID: String?
 
-    /// Never intercept clicks / drags / hover; the registry only reads geometry.
+    var isHighlighted: Bool = false {
+        didSet {
+            guard oldValue != isHighlighted else { return }
+            needsDisplay = true
+        }
+    }
+
+    /// Corner radius of the highlight; icon view uses a cell-sized radius, list rows
+    /// a thin one. Views register with whatever the calling view wants.
+    var highlightCornerRadius: CGFloat = 6
+    /// Inset of the drawn highlight from the view bounds.
+    var highlightInset: CGFloat = 1
+
+    /// Never intercept clicks / drags / hover; the registry only reads geometry and
+    /// paints. hitTest returning nil keeps drag-and-drop and double-click intact.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
     override var acceptsFirstResponder: Bool { false }
+
+    override var isFlipped: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard isHighlighted, !isHostedByTableView else { return }
+        let rect = bounds.insetBy(dx: highlightInset, dy: highlightInset)
+        guard rect.width > 0, rect.height > 0 else { return }
+
+        let path = NSBezierPath(roundedRect: rect,
+                                xRadius: highlightCornerRadius,
+                                yRadius: highlightCornerRadius)
+        let active = window?.isKeyWindow ?? false
+        let color = active
+            ? NSColor.selectedContentBackgroundColor
+            : NSColor.unemphasizedSelectedContentBackgroundColor
+        color.setFill()
+        path.fill()
+    }
+
+    /// Rows inside a SwiftUI Table are already highlighted by NSTableView itself;
+    /// drawing here too would double-paint (and is what produced the border-then-fill
+    /// flash). Only standalone cells such as the icon grid paint their own highlight.
+    private var isHostedByTableView: Bool {
+        var candidate: NSView? = superview
+        while let view = candidate {
+            if view is NSTableView { return true }
+            candidate = view.superview
+        }
+        return false
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -35,20 +84,15 @@ final class ItemHitView: NSView {
 final class ItemHitRegistry {
     static let shared = ItemHitRegistry()
 
-    private struct Entry {
-        weak var view: ItemHitView?
-    }
-
-    private var entries: [Entry] = []
-    private var lastCompact = 0
+    private var entries: [ItemHitView] = []
 
     func register(_ view: ItemHitView) {
-        entries.removeAll { $0.view === view || $0.view == nil }
-        entries.append(Entry(view: view))
+        entries.removeAll { $0 === view || $0.window == nil }
+        entries.append(view)
     }
 
     func unregister(_ view: ItemHitView) {
-        entries.removeAll { $0.view === view || $0.view == nil }
+        entries.removeAll { $0 === view || $0.window == nil }
     }
 
     func removeAll() {
@@ -58,22 +102,20 @@ final class ItemHitRegistry {
     /// Resolve which item sits under a window-space point.
     /// Picks the smallest matching frame so nested cells win over containers.
     func itemID(atWindowPoint point: NSPoint) -> String? {
-        compactIfNeeded()
-
         var bestID: String?
         var bestArea = CGFloat.greatestFiniteMagnitude
 
-        for entry in entries {
-            guard let view = entry.view,
-                  let id = view.itemID,
-                  let window = view.window,
-                  window.isVisible else {
+        for view in entries {
+            guard let id = view.itemID, let window = view.window, window.isVisible else {
+                continue
+            }
+            guard let visibleRect = view.superview?.visibleRect, !visibleRect.isEmpty else {
                 continue
             }
             let localPoint = view.convert(point, from: nil)
             guard view.bounds.contains(localPoint) else { continue }
             let area = view.bounds.width * view.bounds.height
-            if area > 0 && area < bestArea {
+            if area > 0, area < bestArea {
                 bestArea = area
                 bestID = id
             }
@@ -81,32 +123,60 @@ final class ItemHitRegistry {
         return bestID
     }
 
-    private func compactIfNeeded() {
-        lastCompact += 1
-        guard lastCompact % 32 == 0 else { return }
-        entries.removeAll { $0.view == nil }
+    /// Paint the highlight with AppKit and flush it before the event returns.
+    /// This is what makes right-click selection feel immediate in the icon view,
+    /// where there is no NSTableView to do the drawing for us.
+    func applyHighlight(_ ids: Set<String>) {
+        var dirtyWindows = Set<ObjectIdentifier>()
+        var windowsByID: [ObjectIdentifier: NSWindow] = [:]
+
+        for view in entries {
+            let shouldHighlight = view.itemID.map { ids.contains($0) } ?? false
+            if view.isHighlighted != shouldHighlight {
+                view.isHighlighted = shouldHighlight
+            }
+            if let w = view.window {
+                let key = ObjectIdentifier(w)
+                dirtyWindows.insert(key)
+                windowsByID[key] = w
+            }
+        }
+
+        for key in dirtyWindows {
+            guard let window = windowsByID[key] else { continue }
+            window.displayIfNeeded()
+        }
     }
 }
 
 /// Transparent registration layer used behind an item cell.
 struct ItemHitArea: NSViewRepresentable {
     let itemID: String
+    var cornerRadius: CGFloat = 6
+    var inset: CGFloat = 1
 
     func makeNSView(context: Context) -> ItemHitView {
         let v = ItemHitView()
         v.itemID = itemID
+        v.highlightCornerRadius = cornerRadius
+        v.highlightInset = inset
         return v
     }
 
     func updateNSView(_ view: ItemHitView, context: Context) {
         view.itemID = itemID
+        view.highlightCornerRadius = cornerRadius
+        view.highlightInset = inset
     }
 }
 
 extension View {
-    /// Register this cell's geometry so the global click router can resolve it.
-    func itemHitArea(_ itemID: String) -> some View {
-        background(ItemHitArea(itemID: itemID))
+    /// Register this cell's geometry so the global click router can resolve it, and
+    /// let it draw the selection highlight in AppKit for instant feedback.
+    func itemHitArea(_ itemID: String,
+                     cornerRadius: CGFloat = 6,
+                     inset: CGFloat = 1) -> some View {
+        background(ItemHitArea(itemID: itemID, cornerRadius: cornerRadius, inset: inset))
     }
 }
 

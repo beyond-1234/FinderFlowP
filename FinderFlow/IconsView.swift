@@ -195,7 +195,6 @@ struct IconCell: View {
                 .allowsHitTesting(false)
         }
         .padding(6).frame(maxWidth: .infinity)
-        .background(isSelected ? Color.accentColor : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }

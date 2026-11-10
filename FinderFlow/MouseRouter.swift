@@ -12,9 +12,10 @@ import AppKit
 //     acts on the item while the UI still highlights the previous one.
 //   * Clicking empty space does not clear the selection.
 //
-// The router resolves the item under the pointer geometrically on mouse-DOWN and
-// publishes an *intent*. The owning view applies it. Publishing (instead of calling a
-// captured closure) keeps SwiftUI struct capture semantics out of the picture.
+// The router resolves the item under the pointer geometrically on mouse-DOWN, applies
+// the selection to the backing NSTableView *synchronously* where one exists (so the
+// highlight is painted in the very same display pass, with no two-stage flash), and
+// publishes the same selection for SwiftUI to adopt.
 
 final class MouseRouter: ObservableObject {
     static let shared = MouseRouter()
@@ -56,10 +57,7 @@ final class MouseRouter: ObservableObject {
     }
 
     func syncSelection(_ ids: Set<String>) {
-        // Ignore the echo of our own intent.
-        if selectionIntent == ids {
-            selectionIntent = nil
-        }
+        if selectionIntent == ids { selectionIntent = nil }
         currentSelection = ids
         if ids.count == 1 { lastAnchorID = ids.first }
     }
@@ -79,22 +77,33 @@ final class MouseRouter: ObservableObject {
         }
 
         let window = event.window
+        let tableHit = resolveTable(at: event.locationInWindow, window: window)
+
+        // The table's own keyboard focus ring is what made right-click flash a blue
+        // border first and only then fill the row. Suppress it once per table: the
+        // selection fill is the single, native-looking highlight.
+        if let table = tableHit?.table, table.focusRingType != .none {
+            table.focusRingType = .none
+        }
+
         let hitID = ItemHitRegistry.shared.itemID(atWindowPoint: event.locationInWindow)
-            ?? tableRowFallback(at: event.locationInWindow, window: window)
+            ?? tableHit?.id
 
         switch event.type {
         case .rightMouseDown:
             // Select the target BEFORE the menu is built so the menu actions and the
             // visible highlight always agree.
-            if let id = hitID, !currentSelection.contains(id) {
-                apply([id])
+            if let id = hitID {
+                if !currentSelection.contains(id) {
+                    applySynchronously([id], table: tableHit)
+                }
             }
             return event
 
         case .otherMouseDown:
             guard event.buttonNumber == 2 else { return event }
             if let id = hitID {
-                apply([id])
+                applySynchronously([id], table: tableHit)
                 openIntent = id
                 return nil
             }
@@ -108,22 +117,22 @@ final class MouseRouter: ObservableObject {
                 if command {
                     var next = currentSelection
                     if next.contains(id) { next.remove(id) } else { next.insert(id) }
-                    apply(next)
+                    applySynchronously(next, table: tableHit)
                     return nil
                 }
                 if shift {
-                    extendSelection(to: id)
+                    extendSelection(to: id, table: tableHit)
                     return nil
                 }
                 if currentSelection != [id] {
-                    apply([id])
+                    applySynchronously([id], table: tableHit)
                 }
                 return event   // let the row handle drag / double-click / rename
             }
 
             // Empty space inside the listing clears selection.
             if !command && !shift, !currentSelection.isEmpty {
-                apply([])
+                applySynchronously([], table: tableHit)
             }
             return event
 
@@ -132,18 +141,15 @@ final class MouseRouter: ObservableObject {
         }
     }
 
-    private func apply(_ ids: Set<String>) {
-        currentSelection = ids
-        if ids.count == 1 { lastAnchorID = ids.first }
-        selectionIntent = ids
+    // MARK: - AppKit-backed instant selection
+
+    private struct TableHit {
+        let table: NSTableView
+        let row: Int
+        let id: String?
     }
 
-    // MARK: - NSTableView fallback
-    //
-    // SwiftUI `Table` is backed by NSTableView, which knows the row under the pointer
-    // even before a cell has registered geometry.
-
-    private func tableRowFallback(at windowPoint: NSPoint, window: NSWindow?) -> String? {
+    private func resolveTable(at windowPoint: NSPoint, window: NSWindow?) -> TableHit? {
         guard let window,
               let hit = window.contentView?.hitTest(windowPoint) else { return nil }
 
@@ -152,22 +158,43 @@ final class MouseRouter: ObservableObject {
             if let table = view as? NSTableView {
                 let local = table.convert(windowPoint, from: nil)
                 let row = table.row(at: local)
-                guard row >= 0, row < orderedIDs.count else { return nil }
-                return orderedIDs[row]
+                let id: String? = (row >= 0 && row < orderedIDs.count) ? orderedIDs[row] : nil
+                return TableHit(table: table, row: row, id: id)
             }
             candidate = view.superview
         }
         return nil
     }
 
-    private func extendSelection(to id: String) {
+    /// Apply both the AppKit highlight and the SwiftUI intent in the same event, so
+    /// there is exactly one visual transition instead of a border-then-fill flash.
+    private func applySynchronously(_ ids: Set<String>, table: TableHit?) {
+        currentSelection = ids
+        if ids.count == 1 { lastAnchorID = ids.first }
+
+        if let tableHit = table {
+            let table = tableHit.table
+            let indexes = IndexSet(ids.compactMap { orderedIDs.firstIndex(of: $0) })
+            table.selectRowIndexes(indexes, byExtendingSelection: false)
+            // Paint the highlight now; while an NSMenu tracks, the SwiftUI display link
+            // is paused, so anything deferred here would appear late.
+            table.window?.displayIfNeeded()
+        } else {
+            // Icon view: no NSTableView, so the cells draw the highlight themselves.
+            ItemHitRegistry.shared.applyHighlight(ids)
+        }
+
+        selectionIntent = ids
+    }
+
+    private func extendSelection(to id: String, table: TableHit?) {
         let anchor = lastAnchorID ?? currentSelection.first ?? id
         guard let start = orderedIDs.firstIndex(of: anchor),
               let end = orderedIDs.firstIndex(of: id) else {
-            apply([id])
+            applySynchronously([id], table: table)
             return
         }
         let range = start <= end ? start...end : end...start
-        apply(Set(range.map { orderedIDs[$0] }))
+        applySynchronously(Set(range.map { orderedIDs[$0] }), table: table)
     }
 }
