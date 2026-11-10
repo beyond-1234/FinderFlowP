@@ -30,19 +30,16 @@ enum IntegrationLauncher {
     // MARK: Terminals
 
     private static func openTerminal(folder: URL, resolved: ResolvedIntegration) {
-        // 1. CLI terminals that accept their own start directory.
-        if let cli = resolved.cliPath {
-            let args = resolved.integration.cliArgs
-            if args.contains("start") {
-                // WezTerm: `wezterm start --cwd <dir>`
-                runProcess(cli, args + [folder.path])
-                return
-            }
-            if !args.isEmpty {
-                // kitty `--directory <dir>`, alacritty `--working-directory <dir>`
-                runProcess(cli, args + [folder.path])
-                return
-            }
+        // CLI terminals that accept their own start directory: kitty, Alacritty,
+        // WezTerm. Launch them through LaunchServices so the app behaves as if started
+        // from Finder, with the directory passed as an argument.
+        let args = resolved.integration.cliArgs
+        if !args.isEmpty, resolved.cliPath != nil {
+            let bundleID = resolved.appURL.flatMap(bundleIdentifier)
+            launchAppWithArguments(bundleID: bundleID,
+                                   appURL: resolved.appURL,
+                                   arguments: args + [folder.path])
+            return
         }
 
         // 2. Scriptable terminals: drive them with AppleScript so we land in the folder.
@@ -106,11 +103,40 @@ enum IntegrationLauncher {
         return "\"\(escaped)\""
     }
 
-    private static func runProcess(_ executable: String, _ arguments: [String]) {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: executable)
-        p.arguments = arguments
-        try? p.run()
+    /// Launch a GUI-capable CLI (kitty, WezTerm) through LaunchServices so the app gets
+    /// a proper session, activation and Dock presence.
+    ///
+    /// Running the binary with `Process` directly leaves the app without an activation
+    /// policy in some cases and swallows failures silently. `open -a <app> --args …`
+    /// keeps the arguments but goes through the same path as launching from Finder.
+    private static func launchAppWithArguments(bundleID: String?, appURL: URL?,
+                                               arguments: [String]) {
+        let open = Process()
+        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+
+        if let bundleID {
+            open.arguments = ["-b", bundleID, "--args"] + arguments
+        } else if let appURL {
+            open.arguments = ["-a", appURL.path, "--args"] + arguments
+        } else {
+            return
+        }
+
+        let stderrPipe = Pipe()
+        open.standardError = stderrPipe
+        do {
+            try open.run()
+            open.waitUntilExit()
+        } catch {
+            NSLog("FinderFlowP: failed to launch terminal: \(error)")
+            return
+        }
+
+        if open.terminationStatus != 0 {
+            let message = String(data: stderrPipe.fileHandleForReading.readDataToEndOfFile(),
+                                 encoding: .utf8) ?? ""
+            NSLog("FinderFlowP: terminal launch exited \(open.terminationStatus): \(message)")
+        }
     }
 
     private static func runAppleScript(_ source: String) {

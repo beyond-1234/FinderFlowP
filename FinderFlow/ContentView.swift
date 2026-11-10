@@ -36,7 +36,16 @@ struct ContentView: View {
     /// overwrite this one's order and selection, breaking Shift-click ranges.
     @StateObject private var mouseRouter = MouseRouter()
 
-    @Environment(\.ffOpenWindow) private var openWindowBox
+    /// SwiftUI's action for presenting a window for a value. Read here rather than
+    /// injected, because a modifier cannot supply an environment value to the view it
+    /// is applied to.
+    @Environment(\.openWindow) private var openWindow
+
+    /// Hands the window action to descendants that cannot read `openWindow` themselves
+    /// (AppKit-backed menus, helper structs).
+    private var openWindowBox: OpenWindowBox {
+        OpenWindowBox { url in WindowOpener.open(url, using: openWindow) }
+    }
 
     private var viewMode: ViewMode       { ViewMode.fromStorage(viewModeRaw) }
     private var sortField: SortField     { SortField.fromStorage(sortFieldRaw) }
@@ -180,7 +189,7 @@ struct ContentView: View {
         // than a restored window made the content overflow and every edge got clipped.
         .frame(minWidth: 720, minHeight: 420)
         .background(QLResponderSetup())
-        .providingNewWindowOpener()
+        .providingOpenWindow(openWindowBox)
         .onReceive(NotificationCenter.default.publisher(for: .openFolderInNewWindow)) { note in
             guard let url = note.object as? URL else { return }
             openWindowBox.open(url)
@@ -741,6 +750,16 @@ struct ContentView: View {
         if let responder = NSApp.keyWindow?.firstResponder,
            responder is NSTextField || responder is NSTextView {
             return event
+        }
+
+        // ⌘A cannot be a SwiftUI `keyboardShortcut` here: when an AppKit view (the
+        // details table, the column browser) holds focus, the shortcut never reaches
+        // the hidden button that carries it. Handling it at window level works for
+        // every view mode.
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "a" {
+            selectAll()
+            return nil
         }
 
         switch event.keyCode {

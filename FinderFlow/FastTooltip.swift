@@ -46,6 +46,7 @@ final class TooltipPresenter {
     private var pending: DispatchWorkItem?
     private var shownFor: String?
     private var localMonitor: Any?
+    private var globalMonitor: Any?
 
     private init() {}
 
@@ -65,10 +66,14 @@ final class TooltipPresenter {
     }
 
     func cancel(for text: String) {
-        guard shownFor == text || pending != nil else { return }
+        // Always tear down. The previous guard skipped the hide whenever a *different*
+        // tooltip was on screen (shownFor != text) with no pending work, which left a
+        // .popUpMenu-level panel floating above every window forever.
         pending?.cancel()
         pending = nil
-        hide()
+        if shownFor == text || shownFor != nil {
+            hide()
+        }
     }
 
     private func show(_ text: String) {
@@ -152,14 +157,21 @@ final class TooltipPresenter {
         localMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]
         ) { [weak self] event in
-            self?.cancel(for: self?.shownFor ?? "")
+            self?.hide()
             return event
+        }
+        // Moving the pointer off every tracked control, or switching apps, must also
+        // remove the panel. A global monitor covers the cases the local one cannot see.
+        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            self?.hide()
         }
     }
 
     private func removeDismissMonitor() {
         if let m = localMonitor { NSEvent.removeMonitor(m) }
         localMonitor = nil
+        if let m = globalMonitor { NSEvent.removeMonitor(m) }
+        globalMonitor = nil
     }
 
     private func hide() {

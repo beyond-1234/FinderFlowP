@@ -236,7 +236,11 @@ final class IntegrationStore: ObservableObject {
                 }
 
                 let appURL = Self.resolveApp(integration)
-                let cli = integration.cli.flatMap { Self.resolveCLI($0, shellPath: shellPath) }
+                // CLI first from PATH, then from inside the app bundle (kitty).
+                let cli = integration.cli.flatMap {
+                    Self.resolveCLI($0, shellPath: shellPath)
+                        ?? Self.resolveCLI(inAppBundle: appURL, named: $0)
+                }
 
                 guard appURL != nil || cli != nil else { continue }
 
@@ -318,6 +322,23 @@ final class IntegrationStore: ObservableObject {
             }
         }
         return nil
+    }
+
+    /// Look for a CLI that ships *inside* an app bundle's Contents/MacOS.
+    ///
+    /// kitty is the motivating case: /Applications/kitty.app/Contents/MacOS/kitty is
+    /// the only copy on a normal install, so a PATH search never finds it. Without the
+    /// binary we cannot pass `--directory`, and handing the folder to the app bundle
+    /// instead does not reliably start a session.
+    static func resolveCLI(inAppBundle appURL: URL?, named name: String) -> String? {
+        guard let appURL else { return nil }
+        let candidate = appURL
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent(name)
+        return FileManager.default.isExecutableFile(atPath: candidate.path)
+            ? candidate.path
+            : nil
     }
 
     private static var cachedShellPATH: String?

@@ -215,7 +215,12 @@ struct IconsView: View {
     @Environment(\.ffOpenWindow) private var openWindowBox
 
     private func openInNewWindow(_ url: URL) {
-        openWindowBox.open(url)
+        if let box = openWindowBox {
+            box.open(url)
+        } else {
+            // No SwiftUI action in reach: ask the delegate to present a window.
+            WindowOpener.openWithoutAction(url)
+        }
     }
 
     private func quickLook() {
