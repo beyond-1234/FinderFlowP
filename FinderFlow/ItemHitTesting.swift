@@ -44,7 +44,7 @@ final class ItemHitView: NSView {
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard isHighlighted, !isInsideTableView else { return }
+        guard isHighlighted, alphaValue > 0.05, !isInsideTableView else { return }
         let rect = bounds.insetBy(dx: highlightInset, dy: highlightInset)
         guard rect.width > 0, rect.height > 0 else { return }
 
@@ -59,16 +59,28 @@ final class ItemHitView: NSView {
         path.fill()
     }
 
+    private var cachedIsInsideTableView: Bool?
+
     /// Rows inside a SwiftUI Table are already highlighted by NSTableView itself;
     /// drawing here too would double-paint (and is what produced the border-then-fill
     /// flash). Only standalone cells such as the icon grid paint their own highlight.
     var isInsideTableView: Bool {
+        if let cached = cachedIsInsideTableView { return cached }
         var candidate: NSView? = superview
         while let view = candidate {
-            if view is NSTableView { return true }
+            if view is NSTableView {
+                cachedIsInsideTableView = true
+                return true
+            }
             candidate = view.superview
         }
+        cachedIsInsideTableView = false
         return false
+    }
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        cachedIsInsideTableView = nil
     }
 
     override func viewDidMoveToWindow() {

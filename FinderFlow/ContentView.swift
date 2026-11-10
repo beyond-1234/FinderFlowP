@@ -560,8 +560,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var browserContent: some View {
-        switch viewMode {
-        case .list:
+        ZStack {
             ListView(
                 files:            displayFiles,
                 selectedIDs:      $selectedIDs,
@@ -570,13 +569,16 @@ struct ContentView: View {
                 sortField:        sortFieldBinding,
                 sortAscending:    $sortAscending,
                 groupBy:          groupBy,
+                isVisible:        viewMode == .list,
                 onNavigate:       navigateItem,
                 onBrowseInto:     { currentPath = $0 },
                 onReload:         reload,
                 fileOps:          fileOps,
                 favorites:        favorites
             )
-        case .icons:
+            .opacity(viewMode == .list ? 1 : 0)
+            .allowsHitTesting(viewMode == .list)
+
             IconsView(
                 files:       displayFiles,
                 selectedIDs: $selectedIDs,
@@ -588,6 +590,8 @@ struct ContentView: View {
                 fileOps:     fileOps,
                 favorites:   favorites
             )
+            .opacity(viewMode == .icons ? 1 : 0)
+            .allowsHitTesting(viewMode == .icons)
         }
     }
 

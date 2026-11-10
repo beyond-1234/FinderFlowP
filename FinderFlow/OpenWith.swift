@@ -11,8 +11,15 @@ import UniformTypeIdentifiers
 
 enum OpenWithService {
 
+    private static var appCache: [String: [URL]] = [:]
+
     /// Apps registered for this file's type, most relevant first.
     static func applications(for url: URL) -> [URL] {
+        let ext = url.pathExtension.lowercased()
+        if !ext.isEmpty, let hit = appCache[ext] {
+            return hit
+        }
+
         var result: [URL] = []
 
         let contentType = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)
@@ -41,6 +48,10 @@ enum OpenWithService {
         if result.isEmpty,
            let apps = NSWorkspace.shared.urlsForApplications(toOpen: url) as [URL]? {
             result = apps.filter { $0.standardizedFileURL != Bundle.main.bundleURL.standardizedFileURL }
+        }
+
+        if !ext.isEmpty {
+            appCache[ext] = result
         }
 
         return result

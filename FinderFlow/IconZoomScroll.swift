@@ -43,6 +43,8 @@ struct IconZoomScrollCatcher: NSViewRepresentable {
                 guard let self,
                       event.modifierFlags.contains(.control),
                       self.window?.isKeyWindow == true,
+                      !self.isHidden,
+                      self.alphaValue > 0.05,
                       let win = self.window,
                       self.boundsInWindow.contains(win.mouseLocationOutsideOfEventStream)
                         || event.window === win else {
@@ -52,8 +54,8 @@ struct IconZoomScrollCatcher: NSViewRepresentable {
                 let raw = event.hasPreciseScrollingDeltas
                     ? event.scrollingDeltaY
                     : event.scrollingDeltaY * 8
-                guard abs(raw) > 0.5 else { return nil }
-                self.onZoom?(Double(raw) / 400.0)
+                guard abs(raw) > 0.1 else { return nil }
+                self.onZoom?(Double(raw))
                 return nil
             }
         }

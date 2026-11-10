@@ -14,6 +14,7 @@ struct ListView: View {
     @Binding var sortField:     SortField
     @Binding var sortAscending: Bool
     let groupBy:       GroupBy
+    var isVisible:     Bool = true
     let onNavigate:    (FileItem) -> Void
     let onBrowseInto:  (URL) -> Void
     let onReload:      () -> Void
@@ -66,6 +67,7 @@ struct ListView: View {
             sortAscending: sortAscending,
             renamingID: renamingID,
             renameText: $renameText,
+            isVisible: isVisible,
             onRename: { item in startRename(item: item) },
             onCommitRename: { item, text in commitRename(item: item, text: text) },
             onCancelRename: { cancelRename() },

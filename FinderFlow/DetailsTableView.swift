@@ -29,6 +29,7 @@ struct DetailsTableView: NSViewRepresentable {
     /// Selected folder/file row for rename and double-click.
     var renamingID: String?
     @Binding var renameText: String
+    var isVisible: Bool = true
 
     let onRename: (FileItem) -> Void
     let onCommitRename: (FileItem, String) -> Void
@@ -83,6 +84,7 @@ struct DetailsTableView: NSViewRepresentable {
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
+        scrollView.isHidden = !isVisible
 
         context.coordinator.tableView = tableView
         context.coordinator.rebuildColumns()
@@ -94,6 +96,11 @@ struct DetailsTableView: NSViewRepresentable {
         coordinator.parent = self
 
         guard scrollView.documentView is RenameableTableView else { return }
+
+        if scrollView.isHidden == isVisible {
+            scrollView.isHidden = !isVisible
+        }
+        guard isVisible else { return }
 
         coordinator.syncColumnsIfNeeded()
         coordinator.reload(files: files, preservingSelection: selectedIDs)

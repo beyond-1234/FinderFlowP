@@ -12,8 +12,13 @@ struct IconsView: View {
     @ObservedObject var fileOps:   FileOperationsService
     @ObservedObject var favorites: FavoritesService
 
-    /// Persisted so the chosen zoom survives navigation and relaunch.
-    @AppStorage("ffIconSize") private var iconSize: Double = 64
+    /// In-memory icon size for instant, silky-smooth zooming without disk/UserDefaults churn.
+    @State private var iconSize: Double = {
+        let stored = UserDefaults.standard.double(forKey: "ffIconSize")
+        return (stored >= 32 && stored <= 160) ? stored : 64
+    }()
+    @State private var zoomAccumulator: Double = 0
+    @State private var pendingSaveWork: DispatchWorkItem?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,21 +64,28 @@ struct IconsView: View {
             )
             // Control + scroll to zoom, like Finder's icon view.
             .background(IconZoomScrollCatcher { delta in
-                adjustZoom(by: delta)
+                adjustZoomScroll(delta: delta)
             })
 
             HStack(spacing: 8) {
-                Button { adjustZoom(by: -0.25) } label: {
+                Button { stepZoom(by: -1) } label: {
                     Image(systemName: "minus.magnifyingglass").font(.caption2)
                 }
                 .buttonStyle(.borderless)
                 .fastTooltip("Smaller icons (⌃-scroll or ⌘–)")
 
-                Slider(value: $iconSize, in: 32...160, step: 8)
+                Slider(value: Binding(
+                    get: { iconSize },
+                    set: { newSize in
+                        guard newSize != iconSize else { return }
+                        iconSize = newSize
+                        debouncedSaveIconSize()
+                    }
+                ), in: 32...160, step: 8)
                     .frame(width: 110)
                     .fastTooltip("Icon size")
 
-                Button { adjustZoom(by: 0.25) } label: {
+                Button { stepZoom(by: 1) } label: {
                     Image(systemName: "plus.magnifyingglass").font(.caption2)
                 }
                 .buttonStyle(.borderless)
@@ -84,27 +96,28 @@ struct IconsView: View {
             .overlay(alignment: .top) { Divider() }
             .background(
                 Group {
-                    Button("") { adjustZoom(by: 0.25) }
+                    Button("") { stepZoom(by: 1) }
                         .keyboardShortcut("=", modifiers: .command).hidden()
-                    Button("") { adjustZoom(by: -0.25) }
+                    Button("") { stepZoom(by: -1) }
                         .keyboardShortcut("-", modifiers: .command).hidden()
                 }
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .ffZoomIcons)) { note in
             guard let step = note.object as? Double else { return }
-            adjustZoom(by: step)
+            stepZoom(by: step)
         }
     }
 
     @ViewBuilder
     private func cellView(for item: FileItem) -> some View {
+        let isSelected = selectedIDs.contains(item.id)
         IconCell(item: item,
                  iconSize: CGFloat(iconSize),
-                 isSelected: selectedIDs.contains(item.id))
+                 isSelected: isSelected)
             .contentShape(Rectangle())
             .itemHitArea(item.id,
-                         isSelected: selectedIDs.contains(item.id),
+                         isSelected: isSelected,
                          cornerRadius: 6,
                          inset: 0)
             .onTapGesture(count: 2) { onNavigate(item) }
@@ -112,10 +125,36 @@ struct IconsView: View {
             .contextMenu { iconContextMenu(item: item) }
     }
 
-    private func adjustZoom(by step: Double) {
-        let next = min(160, max(32, iconSize * (1 + step)))
-        // Snap to the slider's 8pt grid so scroll zoom and the slider agree.
-        iconSize = (next / 8).rounded() * 8
+    private func adjustZoomScroll(delta: Double) {
+        zoomAccumulator += delta
+        let threshold: Double = 10.0
+        if abs(zoomAccumulator) >= threshold {
+            let steps = Int(zoomAccumulator / threshold)
+            zoomAccumulator -= Double(steps) * threshold
+            let next = min(160, max(32, iconSize + Double(steps) * 8))
+            if next != iconSize {
+                iconSize = next
+                debouncedSaveIconSize()
+            }
+        }
+    }
+
+    private func stepZoom(by step: Double) {
+        let next = min(160, max(32, iconSize + step * 16))
+        if next != iconSize {
+            iconSize = next
+            debouncedSaveIconSize()
+        }
+    }
+
+    private func debouncedSaveIconSize() {
+        pendingSaveWork?.cancel()
+        let val = iconSize
+        let work = DispatchWorkItem {
+            UserDefaults.standard.set(val, forKey: "ffIconSize")
+        }
+        pendingSaveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
 
     private var columns: [GridItem] {
@@ -128,8 +167,9 @@ struct IconsView: View {
 
     @ViewBuilder
     private func iconContextMenu(item: FileItem) -> some View {
-        let sel = files.filter { selectedIDs.contains($0.id) }
-        let targets = sel.isEmpty ? [item] : sel
+        let targets: [FileItem] = selectedIDs.contains(item.id)
+            ? files.filter { selectedIDs.contains($0.id) }
+            : [item]
         let urls = targets.map(\.url)
         iconPrimarySection(item: item, targets: targets, urls: urls)
         iconArchiveSection(item: item, targets: targets, urls: urls)
