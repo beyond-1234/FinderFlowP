@@ -160,8 +160,8 @@ final class IntegrationStore: ObservableObject {
         didSet { UserDefaults.standard.set(defaultTerminalID, forKey: Self.defaultTerminalKey) }
     }
 
-    private static let manualKey = "winfilesIntegrationOverrides"
-    private static let defaultTerminalKey = "winfilesDefaultTerminalID"
+    private static let manualKey = "ffIntegrationOverrides"
+    private static let defaultTerminalKey = "ffDefaultTerminalID"
     private var hasResolvedThisLaunch = false
 
     private init() {

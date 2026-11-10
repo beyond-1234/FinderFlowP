@@ -32,7 +32,7 @@ struct ContentView: View {
     @State private var showFirstRun = false
     @State private var folderWatcher = FolderChangeWatcher()
 
-    @Environment(\.winfilesOpenWindow) private var openWindowBox
+    @Environment(\.ffOpenWindow) private var openWindowBox
 
     private var viewMode: ViewMode       { ViewMode.fromStorage(viewModeRaw) }
     private var sortField: SortField     { SortField.fromStorage(sortFieldRaw) }
@@ -682,7 +682,7 @@ struct ContentView: View {
 
     // MARK: - Helpers
 
-    // MARK: - WinFiles Navigation & Mouse Helpers
+    // MARK: - FinderFlowP Navigation & Mouse Helpers
 
     private func goBack() {
         guard let prev = backStack.popLast() else { return }

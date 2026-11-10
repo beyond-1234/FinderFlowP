@@ -34,7 +34,7 @@ class SearchEngine: ObservableObject {
     @Published var showHidden = false
     @Published var isSearching    = false
 
-    private static let scopeKey = "winfilesSearchScope"
+    private static let scopeKey = "ffSearchScope"
 
     private static func storedScope() -> SearchScope {
         let raw = UserDefaults.standard.string(forKey: scopeKey)

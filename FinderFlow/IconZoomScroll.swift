@@ -9,7 +9,7 @@ import AppKit
 
 extension Notification.Name {
     /// object: Double zoom step (0.25 = +25%).
-    static let winfilesZoomIcons = Notification.Name("winfilesZoomIcons")
+    static let ffZoomIcons = Notification.Name("ffZoomIcons")
 }
 
 struct IconZoomScrollCatcher: NSViewRepresentable {

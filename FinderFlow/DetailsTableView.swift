@@ -534,7 +534,7 @@ final class RenameableTableView: NSTableView {
         case 51: // Delete
             if let delegate = delegate as? DetailsTableView.Coordinator,
                delegate.parent.selectedIDs.isEmpty {
-                NotificationCenter.default.post(name: .winfilesNavigateUp, object: nil)
+                NotificationCenter.default.post(name: .ffNavigateUp, object: nil)
                 return
             }
         default:
@@ -545,5 +545,5 @@ final class RenameableTableView: NSTableView {
 }
 
 extension Notification.Name {
-    static let winfilesNavigateUp = Notification.Name("winfilesNavigateUp")
+    static let ffNavigateUp = Notification.Name("ffNavigateUp")
 }

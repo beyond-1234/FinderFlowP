@@ -11,18 +11,18 @@ enum UserPreferences {
     static let showHiddenKey     = "ffShowHidden"
     static let showPreviewKey    = "ffShowPreview"
     static let showColumnTreeKey = "ffShowColumnTree"
-    /// Bumped key so WinFiles enforces its own default settings
-    static let defaultsMigratedKey = "winfilesDefaultsMigrated100"
+    /// Bumped key so FinderFlowP enforces its own default settings
+    static let defaultsMigratedKey = "ffBrowseDefaultsMigrated200"
     static let didShowFirstRunKey  = "ffDidShowFirstRun"
 
-    // WinFiles defaults: list + no grouping + Name A→Z + folders on top
+    // FinderFlowP defaults: list + no grouping + Name A→Z + folders on top
     static let defaultViewMode:       ViewMode     = .list
     static let defaultSortField:      SortField    = .name
     static let defaultSortAscending:  Bool         = true
     static let defaultGroupBy:        GroupBy      = .none
     static let defaultFolderOrder:    FolderOrder  = .foldersFirst
 
-    /// Applies WinFiles Dolphin/Windows-like browse defaults
+    /// Applies FinderFlowP Dolphin/Windows-like browse defaults
     static func migrateBrowseDefaultsIfNeeded() {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: defaultsMigratedKey) else { return }

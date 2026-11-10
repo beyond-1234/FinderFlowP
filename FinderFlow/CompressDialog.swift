@@ -171,7 +171,7 @@ struct CompressDialog: View {
                 Button(toolHasOwnUI && useOwnUI ? "Open \(selectedTool.name)" : "Compress") {
                     if rememberTool {
                         UserDefaults.standard.set(selectedToolID,
-                                                  forKey: "winfilesArchiveToolID")
+                                                  forKey: "ffArchiveToolID")
                     }
                     if toolHasOwnUI && useOwnUI {
                         onOpenInApp(selectedTool)
@@ -195,7 +195,7 @@ struct CompressDialog: View {
         selectedFormatID = formats.first?.id ?? "zip"
         selectedLevelID = "normal"
 
-        if let remembered = UserDefaults.standard.string(forKey: "winfilesArchiveToolID") {
+        if let remembered = UserDefaults.standard.string(forKey: "ffArchiveToolID") {
             selectedToolID = remembered
         }
 

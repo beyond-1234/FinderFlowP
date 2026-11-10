@@ -171,7 +171,7 @@ struct ListView: View {
         }
     }
 
-    // MARK: - WinFiles Keyboard Monitor
+    // MARK: - FinderFlowP Keyboard Monitor
 
     private func attachKeyboardMonitor() {
         guard keyMonitor == nil else { return }
@@ -267,7 +267,7 @@ struct ListView: View {
 
 
     /// Open a folder in a separate FinderFlow window (not in Finder).
-    @Environment(\.winfilesOpenWindow) private var openWindowBox
+    @Environment(\.ffOpenWindow) private var openWindowBox
 
     private func openInNewWindow(_ url: URL) {
         openWindowBox.open(url)
@@ -554,7 +554,7 @@ struct ItemMenuContent: View {
     // type checker give up ("failed to produce diagnostic").
 
     /// Open a folder in a separate FinderFlow window (not in Finder).
-    @Environment(\.winfilesOpenWindow) private var openWindowBox
+    @Environment(\.ffOpenWindow) private var openWindowBox
 
     private func openInNewWindow(_ url: URL) {
         openWindowBox.open(url)

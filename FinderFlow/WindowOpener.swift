@@ -36,7 +36,7 @@ struct NewWindowOpener: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .environment(\.winfilesOpenWindow, OpenWindowBox { url in
+            .environment(\.ffOpenWindow, OpenWindowBox { url in
                 WindowOpener.open(url, using: openWindow)
             })
     }
@@ -55,7 +55,7 @@ final class OpenWindowBox {
     init(_ open: @escaping (URL) -> Void) { self.open = open }
 }
 
-private struct WinFilesOpenWindowKey: EnvironmentKey {
+private struct FFOpenWindowKey: EnvironmentKey {
     static let defaultValue = OpenWindowBox { url in
         // No SwiftUI action available: fall back to the delegate path on the main queue.
         DispatchQueue.main.async {
@@ -65,8 +65,8 @@ private struct WinFilesOpenWindowKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    var winfilesOpenWindow: OpenWindowBox {
-        get { self[WinFilesOpenWindowKey.self] }
-        set { self[WinFilesOpenWindowKey.self] = newValue }
+    var ffOpenWindow: OpenWindowBox {
+        get { self[FFOpenWindowKey.self] }
+        set { self[FFOpenWindowKey.self] = newValue }
     }
 }

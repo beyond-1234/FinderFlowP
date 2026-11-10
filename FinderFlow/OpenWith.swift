@@ -68,7 +68,7 @@ enum OpenWithService {
 
     // MARK: Remembered per-extension choice
 
-    private static let key = "winfilesOpenWithByExtension"
+    private static let key = "ffOpenWithByExtension"
 
     static func rememberedApp(for url: URL) -> URL? {
         guard let map = UserDefaults.standard.dictionary(forKey: key) as? [String: String] else {

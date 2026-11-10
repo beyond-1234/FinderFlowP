@@ -252,8 +252,8 @@ final class ColumnConfigStore {
     /// Per-folder overrides, keyed by folder path.
     private var overrides: [String: ColumnConfig] = [:]
 
-    private let defaultKey = "winfilesDefaultColumns"
-    private let overridesKey = "winfilesFolderColumns"
+    private let defaultKey = "ffDefaultColumns"
+    private let overridesKey = "ffFolderColumns"
 
     private init() {
         defaultConfig = ColumnConfig(order: ColumnKind.defaultOrder, widths: [:])

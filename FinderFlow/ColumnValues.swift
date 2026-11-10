@@ -14,7 +14,7 @@ final class ColumnValueLoader {
     static let shared = ColumnValueLoader()
 
     private var cache: [String: ExtraMetadata] = [:]
-    private let queue = DispatchQueue(label: "winfiles.column.metadata",
+    private let queue = DispatchQueue(label: "FinderFlowP.column.metadata",
                                       qos: .userInitiated,
                                       attributes: .concurrent)
 

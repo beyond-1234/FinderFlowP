@@ -210,7 +210,7 @@ struct SidebarView: View {
     }
 
     /// Open a folder in a separate FinderFlow window (not in Finder).
-    @Environment(\.winfilesOpenWindow) private var openWindowBox
+    @Environment(\.ffOpenWindow) private var openWindowBox
 
     private func openInNewWindow(_ url: URL) {
         openWindowBox.open(url)

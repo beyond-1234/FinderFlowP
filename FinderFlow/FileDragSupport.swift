@@ -59,7 +59,7 @@ enum FileDragSupport {
         return out
     }
 
-    // MARK: - WinFiles Volume & Drag Operations
+    // MARK: - FinderFlowP Volume & Drag Operations
 
     /// Check if two URLs belong to the same volume
     static func isSameVolume(source: URL, destination: URL) -> Bool {

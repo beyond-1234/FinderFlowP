@@ -53,6 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        PreferenceMigration.runIfNeeded()
         TooltipTiming.applyFastTooltips()
         UserPreferences.migrateBrowseDefaultsIfNeeded()
         _ = UpdateManager.shared

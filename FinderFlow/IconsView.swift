@@ -13,7 +13,7 @@ struct IconsView: View {
     @ObservedObject var favorites: FavoritesService
 
     /// Persisted so the chosen zoom survives navigation and relaunch.
-    @AppStorage("winfilesIconSize") private var iconSize: Double = 64
+    @AppStorage("ffIconSize") private var iconSize: Double = 64
 
     var body: some View {
         VStack(spacing: 0) {
@@ -88,7 +88,7 @@ struct IconsView: View {
                 }
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: .winfilesZoomIcons)) { note in
+        .onReceive(NotificationCenter.default.publisher(for: .ffZoomIcons)) { note in
             guard let step = note.object as? Double else { return }
             adjustZoom(by: step)
         }
@@ -212,7 +212,7 @@ struct IconsView: View {
 
 
     /// Open a folder in a separate FinderFlow window (not in Finder).
-    @Environment(\.winfilesOpenWindow) private var openWindowBox
+    @Environment(\.ffOpenWindow) private var openWindowBox
 
     private func openInNewWindow(_ url: URL) {
         openWindowBox.open(url)
