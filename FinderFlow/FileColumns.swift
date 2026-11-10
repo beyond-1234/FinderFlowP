@@ -210,6 +210,18 @@ enum ColumnProfile: String, Codable, CaseIterable, Identifiable {
 }
 
 // MARK: - Persisted column configuration
+//
+// Design rule: the column layout is STABLE across folders. Navigating must never
+// silently add or remove columns. A folder only gains a different layout when the user
+// explicitly changes it, and that change is remembered for that folder alone.
+//
+// Storage therefore has two layers:
+//   * a global default (applies to every folder that has no override), and
+//   * per-folder overrides keyed by path.
+//
+// File-type detection does not drive this any more. It only decides which columns the
+// header menu *suggests first* (a Pictures folder lists Dimensions near the top), and
+// the extra columns stay unchecked until the user ticks them.
 
 struct ColumnConfig: Codable, Equatable {
     /// Visible columns, in display order.
@@ -225,68 +237,104 @@ struct ColumnConfig: Codable, Equatable {
 final class ColumnConfigStore {
     static let shared = ColumnConfigStore()
 
-    private var cache: [ColumnProfile: ColumnConfig] = [:]
-    private let defaultsKey = "winfilesColumnConfigs"
+    /// The layout used by any folder without its own override.
+    private(set) var defaultConfig: ColumnConfig
+    /// Per-folder overrides, keyed by folder path.
+    private var overrides: [String: ColumnConfig] = [:]
 
-    private init() { load() }
+    private let defaultKey = "winfilesDefaultColumns"
+    private let overridesKey = "winfilesFolderColumns"
+
+    private init() {
+        defaultConfig = ColumnConfig(order: ColumnProfile.generic.defaults, widths: [:])
+        load()
+    }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([String: ColumnConfig].self, from: data)
-        else { return }
-        for (raw, config) in decoded {
-            if let profile = ColumnProfile(rawValue: raw) {
-                cache[profile] = config
-            }
+        if let data = UserDefaults.standard.data(forKey: defaultKey),
+           let decoded = try? JSONDecoder().decode(ColumnConfig.self, from: data) {
+            defaultConfig = decoded
+        }
+        if let data = UserDefaults.standard.data(forKey: overridesKey),
+           let decoded = try? JSONDecoder().decode([String: ColumnConfig].self, from: data) {
+            overrides = decoded
         }
     }
 
     private func persist() {
-        var raw: [String: ColumnConfig] = [:]
-        for (profile, config) in cache { raw[profile.rawValue] = config }
-        if let data = try? JSONEncoder().encode(raw) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+        if let data = try? JSONEncoder().encode(defaultConfig) {
+            UserDefaults.standard.set(data, forKey: defaultKey)
+        }
+        if let data = try? JSONEncoder().encode(overrides) {
+            UserDefaults.standard.set(data, forKey: overridesKey)
         }
     }
 
-    func config(for profile: ColumnProfile) -> ColumnConfig {
-        if let existing = cache[profile] { return existing }
-        let fresh = ColumnConfig(order: profile.defaults, widths: [:])
-        cache[profile] = fresh
-        return fresh
+    // MARK: Reading
+
+    /// Configuration for a folder: its own override, else the global default.
+    func config(forFolder folder: URL?) -> ColumnConfig {
+        guard let key = folder?.standardizedFileURL.path,
+              let override = overrides[key] else { return defaultConfig }
+        return override
     }
 
-    func setOrder(_ order: [ColumnKind], for profile: ColumnProfile) {
-        var config = config(for: profile)
-        config.order = order
-        cache[profile] = config
-        persist()
+    func hasOverride(forFolder folder: URL?) -> Bool {
+        guard let key = folder?.standardizedFileURL.path else { return false }
+        return overrides[key] != nil
     }
 
-    func setWidth(_ width: CGFloat, for kind: ColumnKind, profile: ColumnProfile) {
-        var config = config(for: profile)
-        config.widths[kind.rawValue] = Double(width)
-        cache[profile] = config
-        persist()
-    }
+    // MARK: Writing
 
-    func toggle(_ kind: ColumnKind, in profile: ColumnProfile) {
-        var config = config(for: profile)
-        if let index = config.order.firstIndex(of: kind) {
-            // Name is the anchor column and cannot be hidden.
-            guard kind != .name else { return }
-            config.order.remove(at: index)
+    /// Apply a change. With a folder, the change becomes that folder's override;
+    /// without one, it updates the global default.
+    func update(forFolder folder: URL?, _ mutate: (inout ColumnConfig) -> Void) {
+        if let key = folder?.standardizedFileURL.path {
+            var config = overrides[key] ?? defaultConfig
+            mutate(&config)
+            overrides[key] = config
         } else {
-            let allowed = ColumnKind.menuOrder(for: profile)
-            guard allowed.contains(kind) else { return }
-            config.order.append(kind)
+            mutate(&defaultConfig)
         }
-        cache[profile] = config
         persist()
     }
 
-    func reset(_ profile: ColumnProfile) {
-        cache[profile] = ColumnConfig(order: profile.defaults, widths: [:])
+    func setOrder(_ order: [ColumnKind], forFolder folder: URL?) {
+        update(forFolder: folder) { $0.order = order }
+    }
+
+    func setWidth(_ width: CGFloat, for kind: ColumnKind, forFolder folder: URL?) {
+        update(forFolder: folder) { $0.widths[kind.rawValue] = Double(width) }
+    }
+
+    func toggle(_ kind: ColumnKind, forFolder folder: URL?) {
+        update(forFolder: folder) { config in
+            if let index = config.order.firstIndex(of: kind) {
+                // Name is the anchor column and cannot be hidden.
+                guard kind != .name else { return }
+                config.order.remove(at: index)
+            } else {
+                config.order.append(kind)
+            }
+        }
+    }
+
+    /// Drop this folder's override so it follows the global default again.
+    func clearOverride(forFolder folder: URL?) {
+        guard let key = folder?.standardizedFileURL.path else { return }
+        overrides.removeValue(forKey: key)
+        persist()
+    }
+
+    /// Reset the global default to the original column set.
+    func resetDefault() {
+        defaultConfig = ColumnConfig(order: ColumnProfile.generic.defaults, widths: [:])
+        persist()
+    }
+
+    /// Forget every folder override.
+    func clearAllOverrides() {
+        overrides.removeAll()
         persist()
     }
 }

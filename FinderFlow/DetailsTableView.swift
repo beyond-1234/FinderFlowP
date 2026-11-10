@@ -18,6 +18,9 @@ struct DetailsTableView: NSViewRepresentable {
     let columns: [ColumnKind]
     /// Active profile — decides which columns the header menu offers.
     let profile: ColumnProfile
+    /// Folder whose column override (if any) is in use.
+    let currentFolder: URL
+    let hasFolderOverride: Bool
     let sortField: SortField
     let sortAscending: Bool
     /// Selected folder/file row for rename and double-click.
@@ -110,13 +113,23 @@ struct DetailsTableView: NSViewRepresentable {
 
         func rebuildColumns() {
             guard let tableView else { return }
+
+            // Remember live widths before tearing anything down, so re-adding a column
+            // keeps the width the user set rather than snapping back to the stored one.
+            var liveWidths: [ColumnKind: CGFloat] = [:]
+            for column in tableView.tableColumns {
+                if let kind = ColumnKind(rawValue: column.identifier.rawValue) {
+                    liveWidths[kind] = column.width
+                }
+            }
+
             tableView.tableColumns.forEach { tableView.removeTableColumn($0) }
 
-            let config = ColumnConfigStore.shared.config(for: parent.profile)
+            let config = ColumnConfigStore.shared.config(forFolder: parent.currentFolder)
             for kind in visibleColumns {
                 let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(kind.rawValue))
                 column.title = kind.title
-                column.width = config.width(for: kind)
+                column.width = liveWidths[kind] ?? config.width(for: kind)
                 column.minWidth = kind.minWidth
                 column.resizingMask = .userResizingMask
                 column.headerCell.alignment = kind.alignment == .right ? .right : .left
@@ -128,13 +141,50 @@ struct DetailsTableView: NSViewRepresentable {
             }
         }
 
-        /// Rebuild only when the set/order of columns differs, so live resizing and
-        /// reordering done by the user are not thrown away.
+        /// Rebuild only when the visible *set* of columns differs. A pure reorder moves
+        /// the existing NSTableColumns in place, which keeps their live widths intact —
+        /// rebuilding on reorder is what used to wipe a width the user had just dragged.
         func syncColumnsIfNeeded() {
             let desired = parent.columns
             guard desired != visibleColumns else { return }
+
+            let sameSet = Set(desired) == Set(visibleColumns) && desired.count == visibleColumns.count
+            if sameSet {
+                reorderColumns(to: desired)
+                visibleColumns = desired
+                return
+            }
+
+            // The column set changed: capture the live widths first so the rebuild
+            // cannot drop an in-flight resize.
+            captureLiveWidths()
             visibleColumns = desired
             rebuildColumns()
+        }
+
+        /// Move existing columns into `desired` order without recreating them.
+        private func reorderColumns(to desired: [ColumnKind]) {
+            guard let tableView else { return }
+            for (targetIndex, kind) in desired.enumerated() {
+                let identifier = NSUserInterfaceItemIdentifier(kind.rawValue)
+                guard let currentIndex = tableView.tableColumns.firstIndex(where: {
+                    $0.identifier == identifier
+                }) else { continue }
+                if currentIndex != targetIndex {
+                    tableView.moveColumn(currentIndex, toColumn: targetIndex)
+                }
+            }
+        }
+
+        /// Persist whatever widths the table currently has.
+        private func captureLiveWidths() {
+            guard let tableView else { return }
+            for column in tableView.tableColumns {
+                guard let kind = ColumnKind(rawValue: column.identifier.rawValue) else { continue }
+                ColumnConfigStore.shared.setWidth(column.width,
+                                                  for: kind,
+                                                  forFolder: parent.currentFolder)
+            }
         }
 
         func attachHeaderMenu() {
@@ -146,24 +196,21 @@ struct DetailsTableView: NSViewRepresentable {
             title.isEnabled = false
             menu.addItem(title)
 
-            // Offer the columns that make sense for *this* folder type, not a fixed list.
-            for kind in ColumnKind.menuOrder(for: parent.profile) {
+            // Suggested columns for this folder type come first, unchecked. Ticking one
+            // is what actually adds it — nothing is added automatically.
+            let suggested = ColumnKind.menuOrder(for: parent.profile)
+            for kind in suggested {
                 let item = NSMenuItem(title: kind.title,
                                       action: #selector(toggleColumn(_:)),
                                       keyEquivalent: "")
                 item.target = self
                 item.representedObject = kind.rawValue
                 item.state = current.contains(kind) ? .on : .off
-                // Name is the anchor column.
                 item.isEnabled = kind != .name
                 menu.addItem(item)
             }
 
-            // Always allow revealing every other column too, so a user can add Path or
-            // Permissions even in a Pictures folder.
-            let extras = ColumnKind.menuOrder(for: .generic).filter {
-                !ColumnKind.menuOrder(for: parent.profile).contains($0)
-            }
+            let extras = ColumnKind.allCases.filter { !suggested.contains($0) }
             if !extras.isEmpty {
                 menu.addItem(.separator())
                 let more = NSMenuItem(title: "Other", action: nil, keyEquivalent: "")
@@ -181,7 +228,11 @@ struct DetailsTableView: NSViewRepresentable {
             }
 
             menu.addItem(.separator())
-            let reset = NSMenuItem(title: "Reset Columns", action: #selector(resetColumns), keyEquivalent: "")
+            let reset = NSMenuItem(title: parent.hasFolderOverride
+                                        ? "Use Default Columns for This Folder"
+                                        : "Reset Default Columns",
+                                   action: #selector(resetColumns),
+                                   keyEquivalent: "")
             reset.target = self
             menu.addItem(reset)
 
@@ -335,7 +386,13 @@ struct DetailsTableView: NSViewRepresentable {
 
         func tableViewColumnDidMove(_ notification: Notification) {
             guard let tableView else { return }
-            let order = tableView.tableColumns.compactMap { ColumnKind(rawValue: $0.identifier.rawValue) }
+            let order = tableView.tableColumns.compactMap {
+                ColumnKind(rawValue: $0.identifier.rawValue)
+            }
+            // Adopt the table's new order immediately, so the next updateNSView sees
+            // "already correct" and does not try to reorder or rebuild underneath the
+            // user's drag.
+            visibleColumns = order
             parent.onReorder(order)
         }
 
@@ -343,7 +400,11 @@ struct DetailsTableView: NSViewRepresentable {
             guard let tableView,
                   let column = notification.userInfo?["NSTableColumn"] as? NSTableColumn,
                   let kind = ColumnKind(rawValue: column.identifier.rawValue) else { return }
-            parent.onResize(kind, column.width)
+            // Persist straight away; rebuilds read the live width, so no extra state is
+            // needed here and a following reorder cannot discard it.
+            ColumnConfigStore.shared.setWidth(column.width,
+                                              for: kind,
+                                              forFolder: parent.currentFolder)
         }
 
         // MARK: Drag out
@@ -373,18 +434,36 @@ struct DetailsTableView: NSViewRepresentable {
 
 final class ColumnCellView: NSTableCellView {
     private let label = NSTextField(labelWithString: "")
+    private let iconView = NSImageView()
+    private var iconWidth: NSLayoutConstraint!
+    private var labelGap: NSLayoutConstraint!
 
     init(identifier: NSUserInterfaceItemIdentifier) {
         super.init(frame: .zero)
         self.identifier = identifier
+
         label.font = .systemFont(ofSize: 12)
         label.lineBreakMode = .byTruncatingMiddle
         label.translatesAutoresizingMaskIntoConstraints = false
+
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+
+        addSubview(iconView)
         addSubview(label)
+
+        iconWidth = iconView.widthAnchor.constraint(equalToConstant: 16)
+        labelGap = label.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 6)
+
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor)
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
+            iconWidth,
+
+            labelGap,
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2)
         ])
     }
 
@@ -394,6 +473,15 @@ final class ColumnCellView: NSTableCellView {
         label.alignment = kind.alignment
         label.textColor = .secondaryLabelColor
         label.font = .systemFont(ofSize: 12)
+
+        // Only the Name column shows a file icon, like the old SwiftUI table. The icon
+        // is collapsed (not just hidden) so other columns are not indented by an empty
+        // 16pt gutter.
+        let showsIcon = (kind == .name)
+        iconView.isHidden = !showsIcon
+        iconView.image = showsIcon ? file.icon : nil
+        iconWidth.constant = showsIcon ? 16 : 0
+        labelGap.constant = showsIcon ? 6 : 0
 
         switch kind {
         case .name:

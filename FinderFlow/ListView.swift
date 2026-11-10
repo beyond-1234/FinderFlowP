@@ -59,6 +59,8 @@ struct ListView: View {
             selectedIDs: $selectedIDs,
             columns: visibleColumns,
             profile: columnProfile,
+            currentFolder: currentPath,
+            hasFolderOverride: ColumnConfigStore.shared.hasOverride(forFolder: currentPath),
             sortField: sortField,
             sortAscending: sortAscending,
             renamingID: renamingID,
@@ -72,39 +74,38 @@ struct ListView: View {
                 sortAscending = ascending
             },
             onReorder: { order in
-                ColumnConfigStore.shared.setOrder(order, for: columnProfile)
+                ColumnConfigStore.shared.setOrder(order, forFolder: currentPath)
                 visibleColumns = order
             },
             onResize: { kind, width in
-                ColumnConfigStore.shared.setWidth(width, for: kind, profile: columnProfile)
+                ColumnConfigStore.shared.setWidth(width, for: kind, forFolder: currentPath)
             },
             onToggleColumn: { kind in
-                ColumnConfigStore.shared.toggle(kind, in: columnProfile)
-                visibleColumns = ColumnConfigStore.shared.config(for: columnProfile).order
+                // Ticking a column is an explicit user change: it applies to this folder.
+                ColumnConfigStore.shared.toggle(kind, forFolder: currentPath)
+                visibleColumns = ColumnConfigStore.shared.config(forFolder: currentPath).order
                 loadMetadataIfNeeded()
             },
             onResetColumns: {
-                ColumnConfigStore.shared.reset(columnProfile)
-                visibleColumns = ColumnConfigStore.shared.config(for: columnProfile).order
+                ColumnConfigStore.shared.clearOverride(forFolder: currentPath)
+                visibleColumns = ColumnConfigStore.shared.config(forFolder: currentPath).order
                 loadMetadataIfNeeded()
             },
             onContextMenu: { _ in nil }
         )
         .onAppear {
             attachKeyboardMonitor()
-            refreshColumnProfile(force: true)
+            refreshColumnsFromStore()
             loadMetadataIfNeeded()
         }
         .onDisappear {
             removeKeyboardMonitor()
         }
         .onChange(of: currentPath) { _ in
-            // A new folder means a possibly different column profile.
-            refreshColumnProfile(force: true)
+            // Columns do NOT change per folder automatically — only the stored layout
+            // for the folder we just entered is read back (usually the global default).
+            refreshColumnsFromStore()
             loadMetadataIfNeeded()
-        }
-        .onChange(of: files) { _ in
-            refreshColumnProfile()
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
@@ -120,27 +121,15 @@ struct ListView: View {
         .background(RowCursorEnforcer())
     }
 
-    /// Columns come from the profile that matches this folder's contents, so a photo
-    /// folder shows Dimensions while a source folder shows Type.
+    /// Column layout is stable across folders: this reads the folder's override if it
+    /// has one, otherwise the global default. The detected profile only influences the
+    /// order of suggestions in the header menu.
     @State private var columnProfile: ColumnProfile = .generic
-    @State private var visibleColumns: [ColumnKind] = ColumnConfigStore.shared
-        .config(for: .generic).order
+    @State private var visibleColumns: [ColumnKind] = ColumnConfigStore.shared.defaultConfig.order
 
-    /// Re-detect the profile. `force` also reloads the column set even when the profile
-    /// is unchanged, which is what a navigation needs (a different folder can share a
-    /// profile name but still deserve its persisted layout re-read).
-    private func refreshColumnProfile(force: Bool = false) {
-        let profile = ColumnProfile.detect(from: files)
-
-        if profile != columnProfile {
-            columnProfile = profile
-            visibleColumns = ColumnConfigStore.shared.config(for: profile).order
-            loadMetadataIfNeeded()
-            return
-        }
-        if force {
-            visibleColumns = ColumnConfigStore.shared.config(for: columnProfile).order
-        }
+    private func refreshColumnsFromStore() {
+        columnProfile = ColumnProfile.detect(from: files)
+        visibleColumns = ColumnConfigStore.shared.config(forFolder: currentPath).order
     }
 
     /// Media columns need a metadata pass; only run it when one is visible.
