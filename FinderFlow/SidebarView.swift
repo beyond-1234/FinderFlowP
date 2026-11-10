@@ -65,6 +65,15 @@ struct UserPlace: Identifiable, Hashable {
                                     symbol: "square.grid.2x2.fill"))
         }
 
+        // Trash / Recycle Bin (Dolphin / Windows Explorer convention)
+        if let trash = fm.urls(for: .trashDirectory, in: userDomain).first,
+           fm.fileExists(atPath: trash.path) {
+            places.append(UserPlace(id: "trash",
+                                    url: trash,
+                                    title: "Trash",
+                                    symbol: "trash.fill"))
+        }
+
         return places
     }
 }
@@ -128,6 +137,12 @@ struct SidebarView: View {
                                 NSPasteboard.general.setString(place.url.path, forType: .string)
                                 NotificationCenter.default.post(name: .ffCopyPathFeedback,
                                                                 object: nil)
+                            }
+                            if place.id == "trash" {
+                                Divider()
+                                Button("Empty Trash…", role: .destructive) {
+                                    emptyTrash()
+                                }
                             }
                         }
                 }
@@ -341,6 +356,26 @@ struct SidebarView: View {
         }
     }
 
+    private func emptyTrash() {
+        let alert = NSAlert()
+        alert.messageText = "Empty Trash?"
+        alert.informativeText = "Are you sure you want to permanently erase the items in the Trash?"
+        alert.alertStyle = .warning
+        let btn = alert.addButton(withTitle: "Empty Trash")
+        btn.hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let script = NSAppleScript(source: "tell application \"Finder\" to empty trash")
+            var err: NSDictionary?
+            script?.executeAndReturnError(&err)
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .refreshDirectory, object: currentPath)
+            }
+        }
+    }
+
     private func loadRecent() {
         recentFolders = (UserDefaults.standard.stringArray(forKey: "recentFolders") ?? [])
             .compactMap { URL(fileURLWithPath: $0) }
@@ -409,7 +444,12 @@ struct PlaceRow: View {
 
     private var icon: NSImage {
         if let cached = Self.iconCache[place.id] { return cached }
-        let image = NSWorkspace.shared.icon(forFile: place.url.path)
+        let image: NSImage
+        if place.id == "trash", let trashImg = NSImage(named: NSImage.trashEmptyName) {
+            image = trashImg
+        } else {
+            image = NSWorkspace.shared.icon(forFile: place.url.path)
+        }
         image.size = NSSize(width: 16, height: 16)
         Self.iconCache[place.id] = image
         return image
