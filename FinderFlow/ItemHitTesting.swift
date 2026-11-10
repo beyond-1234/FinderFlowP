@@ -134,6 +134,15 @@ final class ItemHitRegistry {
                   let viewWindow = view.window,
                   window == nil || viewWindow === window,
                   !view.isHiddenOrHasHiddenAncestor else { continue }
+
+            // If the view is inside a scroll / clip view, it MUST be within the visible clip bounds.
+            // Without this, a cell that has scrolled out of view or behind a toolbar/status bar
+            // still matched hits because view.bounds.contains(localPoint) ignored clipping!
+            if let clipView = view.enclosingScrollView?.contentView {
+                let clipPoint = clipView.convert(point, from: nil)
+                guard clipView.bounds.contains(clipPoint) else { continue }
+            }
+
             let localPoint = view.convert(point, from: nil)
             guard view.bounds.contains(localPoint) else { continue }
             let area = view.bounds.width * view.bounds.height

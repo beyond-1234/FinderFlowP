@@ -92,6 +92,7 @@ struct IconsView: View {
                 .fastTooltip("Larger icons (⌃-scroll or ⌘+)")
             }
             .padding(.horizontal, 12).padding(.vertical, 4)
+            .contentShape(Rectangle())
             .background(.bar)
             .overlay(alignment: .top) { Divider() }
             .background(

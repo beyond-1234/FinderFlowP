@@ -74,18 +74,32 @@ final class MouseRouter: ObservableObject {
     // MARK: - Event handling
 
     private func handle(_ event: NSEvent) -> NSEvent? {
+        guard let window = event.window else { return event }
+
         // Never interfere with text editing / inline rename.
-        if let responder = event.window?.firstResponder,
+        if let responder = window.firstResponder,
            responder is NSTextView || responder is NSTextField {
             return event
         }
 
+        // Never interfere when the user clicks an interactive UI control (such as zoom
+        // buttons, sliders, scrollers, popup buttons). Letting controls receive their own
+        // events prevents click-through to underlying file items or accidental deselection.
+        if let hit = window.contentView?.hitTest(event.locationInWindow) {
+            var curr: NSView? = hit
+            while let v = curr {
+                if v is NSControl || v is NSScroller {
+                    return event
+                }
+                curr = v.superview
+            }
+        }
+
         // Only route events landing inside a file listing area.
-        guard BrowserAreaLocator.contains(event.locationInWindow, in: event.window) else {
+        guard BrowserAreaLocator.contains(event.locationInWindow, in: window) else {
             return event
         }
 
-        let window = event.window
         let tableHit = resolveTable(at: event.locationInWindow, window: window)
 
         // The table's own keyboard focus ring is what made right-click flash a blue
