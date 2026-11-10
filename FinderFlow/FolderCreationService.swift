@@ -333,6 +333,7 @@ class FileOperationsService: ObservableObject {
         let label = count == 1 ? "\"\(pairs[0].orig.lastPathComponent)\"" : "\(count) items"
         DispatchQueue.main.async {
             self.lastActionFeedback = ActionFeedback(icon: "trash", message: "Trashed \(label)")
+            NotificationCenter.default.post(name: .ffTrashDidChange, object: nil)
             reload()
         }
     }

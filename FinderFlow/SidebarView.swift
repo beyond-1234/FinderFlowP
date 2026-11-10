@@ -372,6 +372,7 @@ struct SidebarView: View {
             script?.executeAndReturnError(&err)
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: .refreshDirectory, object: currentPath)
+                NotificationCenter.default.post(name: .ffTrashDidChange, object: nil)
             }
         }
     }
@@ -418,14 +419,77 @@ struct SidebarView: View {
     }
 }
 
+final class TrashStateStore: ObservableObject {
+    static let shared = TrashStateStore()
+    @Published var itemCount: Int = 0
+    var isEmpty: Bool { itemCount == 0 }
+
+    private let trashURL = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask).first
+
+    init() {
+        refresh()
+        NotificationCenter.default.addObserver(forName: .ffTrashDidChange, object: nil, queue: .main) { [weak self] _ in
+            self?.refresh()
+        }
+        NotificationCenter.default.addObserver(forName: .refreshDirectory, object: nil, queue: .main) { [weak self] _ in
+            self?.refresh()
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.refresh()
+        }
+    }
+
+    func refresh() {
+        DispatchQueue.global(qos: .utility).async {
+            var count = 0
+            if let trashURL = self.trashURL {
+                if let urls = try? FileManager.default.contentsOfDirectory(at: trashURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                    count = urls.count
+                } else {
+                    let script = NSAppleScript(source: "tell application \"Finder\" to count of items in trash")
+                    var err: NSDictionary?
+                    if let res = script?.executeAndReturnError(&err) {
+                        count = Int(res.int32Value)
+                    }
+                }
+            }
+            DispatchQueue.main.async {
+                if self.itemCount != count {
+                    self.itemCount = count
+                }
+            }
+        }
+    }
+}
+
+struct TrashIconView: View {
+    let isEmpty: Bool
+
+    var body: some View {
+        ZStack {
+            if isEmpty {
+                // Empty state: clean, flat wireframe outline in secondary tone
+                Image(systemName: "trash")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(.secondary)
+            } else {
+                // Full state: filled solid wastebasket with hierarchical shading
+                Image(systemName: "trash.fill")
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.85))
+            }
+        }
+        .frame(width: 16, height: 16)
+    }
+}
+
 /// A default user folder row: localised name when the system has one, and the
 /// folder's own icon so Home/Desktop/Downloads look like they do in Finder.
 struct PlaceRow: View {
     let place: UserPlace
+    @ObservedObject private var trashState = TrashStateStore.shared
 
-    /// Resolved once per place and cached. Looking up the localised name and the
-    /// folder icon hits the disk, and this row is re-evaluated on every layout pass
-    /// while the window is being resized.
     private static var nameCache: [String: String] = [:]
     private static var iconCache: [String: NSImage] = [:]
 
@@ -444,24 +508,37 @@ struct PlaceRow: View {
 
     private var icon: NSImage {
         if let cached = Self.iconCache[place.id] { return cached }
-        let image: NSImage
-        if place.id == "trash", let trashImg = NSImage(named: NSImage.trashEmptyName) {
-            image = trashImg
-        } else {
-            image = NSWorkspace.shared.icon(forFile: place.url.path)
-        }
+        let image = NSWorkspace.shared.icon(forFile: place.url.path)
         image.size = NSSize(width: 16, height: 16)
         Self.iconCache[place.id] = image
         return image
     }
 
     var body: some View {
-        Label {
-            Text(displayName).lineLimit(1)
-        } icon: {
-            Image(nsImage: icon)
-                .resizable()
-                .frame(width: 16, height: 16)
+        if place.id == "trash" {
+            HStack(spacing: 8) {
+                TrashIconView(isEmpty: trashState.isEmpty)
+                Text(displayName)
+                    .lineLimit(1)
+                Spacer()
+                if trashState.itemCount > 0 {
+                    Text("\(trashState.itemCount)")
+                        .font(.system(size: 10, weight: .regular, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color(nsColor: .quaternaryLabelColor)))
+                }
+            }
+            .fastTooltip(trashState.isEmpty ? "Trash (Empty)" : "Trash (\(trashState.itemCount) items)")
+        } else {
+            Label {
+                Text(displayName).lineLimit(1)
+            } icon: {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 16, height: 16)
+            }
         }
     }
 }

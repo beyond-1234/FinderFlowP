@@ -184,4 +184,5 @@ extension Notification.Name {
     static let openFolderInNewWindow = Notification.Name("openFolderInNewWindow")
     static let refreshDirectory  = Notification.Name("FinderFlow.refreshDirectory")
     static let ffCopyPathFeedback = Notification.Name("FF.copyPathFeedback")
+    static let ffTrashDidChange   = Notification.Name("FinderFlowP.trashDidChange")
 }
