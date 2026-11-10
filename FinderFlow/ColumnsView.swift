@@ -432,17 +432,28 @@ struct ColumnPane: View {
     }
 
     var body: some View {
-        List {
+        // A List with a real `selection` binding, not per-row tap gestures.
+        //
+        // The rows also carry `.onDrag` (for dragging files out), and SwiftUI's drag
+        // recogniser swallows the mouse-down that a simultaneous `.onTapGesture` on the
+        // same row needs. That is why tapping a row never called `onSelect`: the column
+        // never advanced and the preview stayed on the previous file. `List`'s own
+        // selection handling sits below the gesture layer and is not affected.
+        List(selection: rowSelectionBinding) {
             if groupBy != .none {
                 ForEach(groups) { group in
                     Section {
-                        ForEach(group.items) { item in rowFor(item) }
+                        ForEach(group.items) { item in
+                            rowFor(item).tag(item.id)
+                        }
                     } header: {
                         DateSectionHeader(title: group.title, count: group.items.count)
                     }
                 }
             } else {
-                ForEach(items) { item in rowFor(item) }
+                ForEach(items) { item in
+                    rowFor(item).tag(item.id)
+                }
             }
         }
         .listStyle(.plain)
@@ -479,36 +490,35 @@ struct ColumnPane: View {
         }
     }
 
+    /// Bridges the List's single-selection to this pane's behaviour.
+    ///
+    /// Selecting a folder both highlights it and appends the next column (handled by the
+    /// parent's `onSelect`); selecting a file highlights it and drives the preview. The
+    /// setter is the only place clicks are observed, which is why it must go through the
+    /// List rather than a row gesture.
+    private var rowSelectionBinding: Binding<String?> {
+        Binding(
+            get: {
+                // Show the shared selection when it belongs to this folder.
+                guard let id = selectedIDs.first,
+                      items.contains(where: { $0.id == id }) else { return nil }
+                return id
+            },
+            set: { newID in
+                guard let newID,
+                      let item = items.first(where: { $0.id == newID }) else { return }
+                onSelect(item)
+            }
+        )
+    }
+
     @ViewBuilder
     private func rowFor(_ item: FileItem) -> some View {
-        let isSelected = selectedIDs.contains(item.id)
-        ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture(count: 2) {
-                    if item.isBrowsableFolder {
-                        onSelect(item)
-                    } else {
-                        onOpen(item.url)
-                    }
-                }
-                .onTapGesture { onSelect(item) }
-            ColumnRow(item: item, isHighlighted: isSelected)
-                .allowsHitTesting(false)
-        }
-        // Painted by SwiftUI here. The row lives inside a SwiftUI List (an NSTableView),
-        // where itemHitArea deliberately skips drawing because table rows normally draw
-        // their own selection — but this List has no `selection` binding, so nothing
-        // would be drawn at all.
-        //
-        // No itemHitArea registration either: the column browser handles its own clicks
-        // (selecting a folder appends a column), and the shared mouse router is kept off
-        // in this mode. Registering would only pollute its hit testing.
-        .background(isSelected ? Color.accentColor : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .fileDragOut(item: item, files: items,
-                     selectedIDs: isSelected ? selectedIDs : [item.id])
-        .contextMenu { columnContextMenu(item: item) }
+        ColumnRow(item: item)
+            .contentShape(Rectangle())
+            .fileDragOut(item: item, files: items,
+                         selectedIDs: selectedIDs.contains(item.id) ? selectedIDs : [item.id])
+            .contextMenu { columnContextMenu(item: item) }
     }
 
     // MARK: - Full context menu
@@ -678,30 +688,24 @@ struct ColumnPane: View {
 // MARK: - Column row
 
 struct ColumnRow: View {
-    let item:          FileItem
-    let isHighlighted: Bool
+    let item: FileItem
 
     var body: some View {
         HStack(spacing: 6) {
             Image(nsImage: item.icon).resizable().frame(width: 16, height: 16)
                 .allowsHitTesting(false)
             Text(item.name).font(.system(size: 12)).lineLimit(1)
-                .foregroundStyle(isHighlighted ? Color.white : Color.primary)
                 .allowsHitTesting(false)
             TagDotsView(colors: item.tagColors, size: 9)
                 .allowsHitTesting(false)
             Spacer()
             if item.isBrowsableFolder {
                 Image(systemName: "chevron.right").font(.caption2)
-                    .foregroundStyle(isHighlighted ? Color.white.opacity(0.8) : Color.secondary)
+                    .foregroundStyle(.secondary)
                     .allowsHitTesting(false)
             }
         }
         .padding(.vertical, 2)
         .padding(.horizontal, 4)
-        // The highlight itself is painted by the AppKit layer (itemHitArea), which is
-        // what the list and icon views use — so all three now look identical instead of
-        // this view drawing its own translucent accent fill.
-        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
