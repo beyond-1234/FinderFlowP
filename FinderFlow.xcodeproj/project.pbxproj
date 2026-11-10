@@ -60,6 +60,7 @@
 		FF1E000000000000000000DA /* TooltipTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000076 /* TooltipTiming.swift */; };
 		FF1E000000000000000000DB /* TransferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000077 /* TransferEngine.swift */; };
 		FF1E000000000000000000DC /* WindowOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000078 /* WindowOpener.swift */; };
+		FF1E0000000000000000000002 /* FileContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000000001 /* FileContextMenu.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -144,6 +145,7 @@
 		FF1E00000000000000000076 /* TooltipTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TooltipTiming.swift; sourceTree = "<group>"; };
 		FF1E00000000000000000077 /* TransferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferEngine.swift; sourceTree = "<group>"; };
 		FF1E00000000000000000078 /* WindowOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOpener.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000000001 /* FileContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileContextMenu.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -244,6 +246,7 @@
 				FF1E00000000000000000076 /* TooltipTiming.swift */,
 				FF1E00000000000000000077 /* TransferEngine.swift */,
 				FF1E00000000000000000078 /* WindowOpener.swift */,
+				FF1E0000000000000000000001 /* FileContextMenu.swift */,
 				DDDDDDDDDDDDDDDDDDDD0001 /* AceEditor */,
 			);
 			path = FinderFlow;
@@ -428,6 +431,7 @@
 				FFFFFFFFFFFFFFFF000A /* MarkdownEditorController.swift in Sources */,
 				FFFFFFFFFFFFFFFF000C /* FirstRunSheet.swift in Sources */,
 				SSSSSSSSSSSSSSSSSSSS0002 /* ArchiveSecurity.swift in Sources */,
+				FF1E0000000000000000000002 /* FileContextMenu.swift in Sources */,
 				FF1E000000000000000000C8 /* ArchiveDialogPresenter.swift in Sources */,
 				FF1E000000000000000000C9 /* ArchiveRunner.swift in Sources */,
 				FF1E000000000000000000CA /* ArchiveTools.swift in Sources */,

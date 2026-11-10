@@ -39,7 +39,8 @@ struct DetailsTableView: NSViewRepresentable {
     let onResize: (ColumnKind, CGFloat) -> Void
     let onToggleColumn: (ColumnKind) -> Void
     let onResetColumns: () -> Void
-    let onContextMenu: (Set<String>) -> NSMenu?
+    /// Builds the right-click menu for the given selection (empty = background).
+    let makeContextMenu: ([FileItem]) -> NSMenu
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -58,12 +59,17 @@ struct DetailsTableView: NSViewRepresentable {
         tableView.delegate = context.coordinator
         tableView.target = context.coordinator
         tableView.doubleAction = #selector(Coordinator.handleDoubleClick(_:))
-        tableView.menu = NSMenu()
+        // No static menu here: RenameableTableView builds it per right-click so the
+        // items reflect the row under the pointer.
         tableView.onCommitRename = { [weak coordinator = context.coordinator] id, text in
             coordinator?.commitRename(id: id, text: text)
         }
         tableView.onCancelRename = { [weak coordinator = context.coordinator] in
             coordinator?.cancelRename()
+        }
+        tableView.menuProvider = { [weak coordinator = context.coordinator] selection in
+            guard let coordinator else { return NSMenu() }
+            return coordinator.parent.makeContextMenu(selection)
         }
 
         // Dragging rows out of the app (to Finder, other apps).
@@ -103,6 +109,10 @@ struct DetailsTableView: NSViewRepresentable {
         weak var tableView: RenameableTableView?
 
         private var files: [FileItem] = []
+
+        /// Rows currently displayed, exposed so the table view can resolve a
+        /// right-click to the FileItems behind it.
+        var currentFiles: [FileItem] { files }
         private var visibleColumns: [ColumnKind] = []
         private var isProgrammaticSelection = false
         private var editingRow: Int?
@@ -341,12 +351,6 @@ struct DetailsTableView: NSViewRepresentable {
             parent.selectedIDs = ids
         }
 
-        /// Right-click selects the row under the pointer before the menu opens, which is
-        /// the behaviour people expect from Explorer.
-        func menuNeedsUpdate(_ menu: NSMenu) {
-            // No-op: the table view handles this in its own menu(for:) override.
-        }
-
         @objc func handleDoubleClick(_ sender: Any?) {
             guard let tableView, tableView.clickedRow >= 0,
                   tableView.clickedRow < files.count else { return }
@@ -511,16 +515,25 @@ final class ColumnCellView: NSTableCellView {
 final class RenameableTableView: NSTableView {
     var onCommitRename: ((String, String) -> Void)?
     var onCancelRename: (() -> Void)?
+    /// Supplies the menu for the rows currently relevant to this right-click.
+    var menuProvider: (([FileItem]) -> NSMenu)?
 
     /// Right-click selects the clicked row first, so menu actions target what the user
     /// actually pointed at.
     override func menu(for event: NSEvent) -> NSMenu? {
         let point = convert(event.locationInWindow, from: nil)
         let row = self.row(at: point)
+
         if row >= 0, !selectedRowIndexes.contains(row) {
             selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
-        return super.menu(for: event)
+
+        // Build from the live selection so the menu matches the highlight the user sees.
+        let files = (dataSource as? DetailsTableView.Coordinator)?.currentFiles ?? []
+        let selected = selectedRowIndexes.compactMap { index -> FileItem? in
+            index < files.count ? files[index] : nil
+        }
+        return menuProvider?(selected)
     }
 
     override func keyDown(with event: NSEvent) {

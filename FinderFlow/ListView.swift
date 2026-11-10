@@ -92,7 +92,26 @@ struct ListView: View {
                 visibleColumns = ColumnConfigStore.shared.config(forFolder: currentPath).order
                 loadMetadataIfNeeded()
             },
-            onContextMenu: { _ in nil }
+            makeContextMenu: { selection in
+                FileContextMenuBuilder.build(.init(
+                    selection: selection,
+                    currentPath: currentPath,
+                    fileOps: fileOps,
+                    favorites: favorites,
+                    onReload: onReload,
+                    onOpen: onNavigate,
+                    onBrowseInto: onBrowseInto,
+                    onRename: startRename,
+                    onQuickLook: { ids in
+                        let urls = files.filter { ids.contains($0.id) }.map(\.url)
+                        if !urls.isEmpty { QuickLookController.shared.show(urls) }
+                    },
+                    onGetInfo: { showGetInfoInFinder($0.map(\.url)) },
+                    onConfirmDelete: { names, act in
+                        confirmPermanentDelete(names: names, onConfirm: act)
+                    }
+                ))
+            }
         )
         .onAppear {
             attachKeyboardMonitor()
