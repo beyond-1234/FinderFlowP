@@ -605,7 +605,15 @@ struct ContentView: View {
     @State private var cachedDisplayFiles: [FileItem] = []
 
     private func refreshDisplayFiles() {
-        let computed = computeDisplayFiles()
+        refreshDisplayFiles(with: rawFiles)
+    }
+
+    /// Takes the raw list explicitly. Inside `.onChange` / completion closures the view's
+    /// `rawFiles` property is still the pre-change snapshot, so reading it there made the
+    /// cache compare against stale data and skip the update entirely (which left the
+    /// list empty after navigation).
+    private func refreshDisplayFiles(with raw: [FileItem]) {
+        let computed = computeDisplayFiles(from: raw)
         guard !sameFileList(computed, cachedDisplayFiles) else { return }
         cachedDisplayFiles = computed
     }
@@ -619,7 +627,7 @@ struct ContentView: View {
         return true
     }
 
-    private func computeDisplayFiles() -> [FileItem] {
+    private func computeDisplayFiles(from raw: [FileItem]) -> [FileItem] {
         // Tag filter: Mac-wide Spotlight matches UNION current-folder items carrying
         // the color. The local pass is what guarantees correctness — Spotlight only
         // finds files with a real kMDItemUserTags value, while the local match also
@@ -627,7 +635,7 @@ struct ContentView: View {
         // Spotlight cannot search. So tagged items in the folder you're viewing always
         // appear, regardless of how they were tagged.
         if let tag = activeTagFilter {
-            let merged = mergedTagResults(for: tag)
+            let merged = mergedTagResults(for: tag, raw: raw)
             guard !searchEngine.query.isEmpty else { return merged }
             return merged.filter { $0.name.localizedCaseInsensitiveContains(searchEngine.query) }
         }
@@ -635,17 +643,17 @@ struct ContentView: View {
         // calling FileItem.load(from:) on every SwiftUI re-render.
         if !searchEngine.results.isEmpty { return searchDisplayFiles }
         if !searchEngine.query.isEmpty {
-            return rawFiles.filter { $0.name.localizedCaseInsensitiveContains(searchEngine.query) }
+            return raw.filter { $0.name.localizedCaseInsensitiveContains(searchEngine.query) }
         }
-        return rawFiles
+        return raw
     }
 
     // Spotlight (Mac-wide) results unioned with current-folder color matches, deduped
     // by path and sorted. The local match covers items that only carry the legacy
     // color label, which Spotlight can't find.
-    private func mergedTagResults(for tag: String) -> [FileItem] {
+    private func mergedTagResults(for tag: String, raw: [FileItem]) -> [FileItem] {
         let colorNumber = FileItem.colorNameToLabel[tag.lowercased()]
-        let local = rawFiles.filter { item in
+        let local = raw.filter { item in
             item.tagNames.contains { $0.localizedCaseInsensitiveCompare(tag) == .orderedSame }
                 || (colorNumber != nil && colorNumber == item.labelNumber)
         }
@@ -859,7 +867,7 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 guard gen == reloadGeneration else { return }
                 rawFiles = items
-                refreshDisplayFiles()
+                refreshDisplayFiles(with: items)
                 refreshTagNames()
                 then?()
             }

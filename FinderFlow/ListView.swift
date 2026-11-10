@@ -108,9 +108,9 @@ struct ListView: View {
             refreshColumnsFromStore()
             loadMetadataIfNeeded()
         }
-        .onChange(of: files) { _ in
+        .onChange(of: files) { newFiles in
             // The folder contents changed: re-scan which groups are worth offering.
-            refreshAvailableGroups()
+            refreshAvailableGroups(newFiles)
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
@@ -135,12 +135,15 @@ struct ListView: View {
 
     private func refreshColumnsFromStore() {
         visibleColumns = ColumnConfigStore.shared.config(forFolder: currentPath).order
-        refreshAvailableGroups()
+        refreshAvailableGroups(files)
     }
 
     /// Re-scan the extensions present so the header menu can group its candidates.
-    private func refreshAvailableGroups() {
-        let scan = FileTypeScanner.scan(files)
+    /// Takes the file list explicitly: inside an `.onChange` closure the view's `files`
+    /// property is still the pre-change snapshot, which made the scan see an empty
+    /// folder and offer only the General group.
+    private func refreshAvailableGroups(_ scanned: [FileItem]) {
+        let scan = FileTypeScanner.scan(scanned)
         if scan.groups != availableGroups { availableGroups = scan.groups }
         if scan.counts != groupCounts { groupCounts = scan.counts }
     }
