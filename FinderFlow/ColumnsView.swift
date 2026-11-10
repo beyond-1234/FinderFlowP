@@ -133,38 +133,44 @@ struct ColumnsView: View {
 
     @ViewBuilder
     private func paneAndHandle(idx: Int, dir: URL) -> some View {
+        let childDirURL: URL? = (idx + 1 < columns.count) ? columns[idx + 1] : nil
+        let isLastColumn = (idx == columns.count - 1)
+
         ColumnPane(
-            directory:      dir,
-            selectedIDs:    $selectedIDs,
-            showHidden:     showHidden,
-            groupBy:        groupBy,
-            sortField:      sortField,
-            sortAscending:  sortAscending,
-            folderOrder:    folderOrder,
+            directory:        dir,
+            childDirURL:      childDirURL,
+            isLastColumn:     isLastColumn,
+            selectedFileURL:  selectedFileURL,
+            selectedIDs:      $selectedIDs,
+            showHidden:       showHidden,
+            groupBy:          groupBy,
+            sortField:        sortField,
+            sortAscending:    sortAscending,
+            folderOrder:      folderOrder,
             onSelect: { selected in
-                // Browsing into a folder replaces the selection with it; selecting a
-                // file records it so ⌘A and the status bar see it.
-                selectedIDs = [selected.id]
                 if selected.isBrowsableFolder {
                     columns = Array(columns.prefix(idx + 1)) + [selected.url]
                     currentPath = selected.url
                     selectedFileURL = nil
+                    selectedIDs = [selected.id]
                 } else {
                     columns = Array(columns.prefix(idx + 1))
                     selectedFileURL = selected.url
+                    selectedIDs = [selected.id]
                 }
             },
             onBrowseInto: { url in
                 columns = Array(columns.prefix(idx + 1)) + [url]
                 currentPath = url
                 selectedFileURL = nil
+                selectedIDs = [url.path]
             },
             onOpen: onOpen,
             fileOps:   fileOps,
             favorites: favorites
         )
         .frame(width: colWidths[idx, default: kDefaultColWidth], alignment: .topLeading)
-        .id(idx)
+        .id(dir.path)
 
         ResizeHandle { delta in
             let current = colWidths[idx, default: kDefaultColWidth]
@@ -403,16 +409,19 @@ private final class _ResizeCursorTrackerView: NSView {
 // MARK: - Column pane
 
 struct ColumnPane: View {
-    let directory:      URL
+    let directory:        URL
+    let childDirURL:      URL?
+    let isLastColumn:     Bool
+    let selectedFileURL:  URL?
     @Binding var selectedIDs: Set<String>
-    let showHidden:     Bool
-    let groupBy:        GroupBy
-    let sortField:      SortField
-    let sortAscending:  Bool
-    let folderOrder:    FolderOrder
-    let onSelect:       (FileItem) -> Void
-    let onBrowseInto:   (URL) -> Void
-    let onOpen:         (URL) -> Void
+    let showHidden:       Bool
+    let groupBy:          GroupBy
+    let sortField:        SortField
+    let sortAscending:    Bool
+    let folderOrder:      FolderOrder
+    let onSelect:         (FileItem) -> Void
+    let onBrowseInto:     (URL) -> Void
+    let onOpen:           (URL) -> Void
     @ObservedObject var fileOps:   FileOperationsService
     @ObservedObject var favorites: FavoritesService
 
@@ -432,19 +441,12 @@ struct ColumnPane: View {
     }
 
     var body: some View {
-        // A List with a real `selection` binding, not per-row tap gestures.
-        //
-        // The rows also carry `.onDrag` (for dragging files out), and SwiftUI's drag
-        // recogniser swallows the mouse-down that a simultaneous `.onTapGesture` on the
-        // same row needs. That is why tapping a row never called `onSelect`: the column
-        // never advanced and the preview stayed on the previous file. `List`'s own
-        // selection handling sits below the gesture layer and is not affected.
-        List(selection: rowSelectionBinding) {
+        List {
             if groupBy != .none {
                 ForEach(groups) { group in
                     Section {
                         ForEach(group.items) { item in
-                            rowFor(item).tag(item.id)
+                            rowFor(item)
                         }
                     } header: {
                         DateSectionHeader(title: group.title, count: group.items.count)
@@ -452,7 +454,7 @@ struct ColumnPane: View {
                 }
             } else {
                 ForEach(items) { item in
-                    rowFor(item).tag(item.id)
+                    rowFor(item)
                 }
             }
         }
@@ -490,35 +492,36 @@ struct ColumnPane: View {
         }
     }
 
-    /// Bridges the List's single-selection to this pane's behaviour.
-    ///
-    /// Selecting a folder both highlights it and appends the next column (handled by the
-    /// parent's `onSelect`); selecting a file highlights it and drives the preview. The
-    /// setter is the only place clicks are observed, which is why it must go through the
-    /// List rather than a row gesture.
-    private var rowSelectionBinding: Binding<String?> {
-        Binding(
-            get: {
-                // Show the shared selection when it belongs to this folder.
-                guard let id = selectedIDs.first,
-                      items.contains(where: { $0.id == id }) else { return nil }
-                return id
-            },
-            set: { newID in
-                guard let newID,
-                      let item = items.first(where: { $0.id == newID }) else { return }
-                onSelect(item)
+    private func isRowHighlighted(_ item: FileItem) -> Bool {
+        // 1. 如果右侧展开了子列，本列中被选中的文件夹必须保持高亮（层级导航线索）
+        if let child = childDirURL, item.url.standardizedFileURL == child.standardizedFileURL {
+            return true
+        }
+        // 2. 如果这是最右边的活动列，当前点选的文件或 ⌘A 多选项全部高亮
+        if isLastColumn {
+            if let selectedFile = selectedFileURL, item.url.standardizedFileURL == selectedFile.standardizedFileURL {
+                return true
             }
-        )
+            if selectedIDs.contains(item.id) {
+                return true
+            }
+        }
+        return false
     }
 
     @ViewBuilder
     private func rowFor(_ item: FileItem) -> some View {
-        ColumnRow(item: item)
-            .contentShape(Rectangle())
-            .fileDragOut(item: item, files: items,
-                         selectedIDs: selectedIDs.contains(item.id) ? selectedIDs : [item.id])
-            .contextMenu { columnContextMenu(item: item) }
+        let isHighlighted = isRowHighlighted(item)
+        Button(action: {
+            onSelect(item)
+        }) {
+            ColumnRow(item: item, isHighlighted: isHighlighted)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .fileDragOut(item: item, files: items,
+                     selectedIDs: isHighlighted ? (selectedIDs.contains(item.id) ? selectedIDs : [item.id]) : [item.id])
+        .contextMenu { columnContextMenu(item: item) }
     }
 
     // MARK: - Full context menu
@@ -689,23 +692,27 @@ struct ColumnPane: View {
 
 struct ColumnRow: View {
     let item: FileItem
+    let isHighlighted: Bool
 
     var body: some View {
         HStack(spacing: 6) {
             Image(nsImage: item.icon).resizable().frame(width: 16, height: 16)
                 .allowsHitTesting(false)
             Text(item.name).font(.system(size: 12)).lineLimit(1)
+                .foregroundStyle(isHighlighted ? Color.white : Color.primary)
                 .allowsHitTesting(false)
             TagDotsView(colors: item.tagColors, size: 9)
                 .allowsHitTesting(false)
             Spacer()
             if item.isBrowsableFolder {
                 Image(systemName: "chevron.right").font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isHighlighted ? Color.white.opacity(0.85) : Color.secondary)
                     .allowsHitTesting(false)
             }
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 4)
+        .padding(.vertical, 3)
+        .padding(.horizontal, 6)
+        .background(isHighlighted ? Color.accentColor : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
