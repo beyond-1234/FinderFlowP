@@ -18,34 +18,38 @@ struct IconsView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
-                    ForEach(groups) { group in
-                        Section {
-                            LazyVGrid(columns: columns, spacing: 12) {
-                                ForEach(group.items) { item in
-                                    IconCell(item: item,
-                                             iconSize: CGFloat(iconSize),
-                                             isSelected: selectedIDs.contains(item.id))
-                                        .contentShape(Rectangle())
-                                        .itemHitArea(item.id,
-                                                     isSelected: selectedIDs.contains(item.id),
-                                                     cornerRadius: 6,
-                                                     inset: 0)
-                                        .onTapGesture(count: 2) { onNavigate(item) }
-                                        .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
-                                        .contextMenu { iconContextMenu(item: item) }
+                if groupBy != .none {
+                    LazyVStack(alignment: .leading, spacing: 16, pinnedViews: [.sectionHeaders]) {
+                        ForEach(groups) { group in
+                            Section {
+                                LazyVGrid(columns: columns, spacing: 12) {
+                                    ForEach(group.items) { item in
+                                        cellView(for: item)
+                                    }
                                 }
-                            }
-                            .padding(.horizontal, 16)
-                        } header: {
-                            if groupBy != .none, !group.title.isEmpty {
-                                DateSectionHeader(title: group.title, count: group.items.count)
-                                    .padding(.horizontal, 8)
+                                .padding(.horizontal, 16)
+                            } header: {
+                                if !group.title.isEmpty {
+                                    DateSectionHeader(title: group.title, count: group.items.count)
+                                        .padding(.horizontal, 8)
+                                }
                             }
                         }
                     }
+                    .padding(.vertical, 12)
+                } else {
+                    // Ungrouped (default): a direct LazyVGrid inside ScrollView.
+                    // Nesting LazyVGrid inside LazyVStack breaks cell virtualization and
+                    // forces all hundred+ icons to instantiate immediately, causing visible
+                    // stutter when switching into the icon view.
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(files) { item in
+                            cellView(for: item)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                 }
-                .padding(.vertical, 12)
             }
             .background(Color(nsColor: .textBackgroundColor))
             .contextMenu { FolderBackgroundMenu() }
@@ -92,6 +96,21 @@ struct IconsView: View {
             guard let step = note.object as? Double else { return }
             adjustZoom(by: step)
         }
+    }
+
+    @ViewBuilder
+    private func cellView(for item: FileItem) -> some View {
+        IconCell(item: item,
+                 iconSize: CGFloat(iconSize),
+                 isSelected: selectedIDs.contains(item.id))
+            .contentShape(Rectangle())
+            .itemHitArea(item.id,
+                         isSelected: selectedIDs.contains(item.id),
+                         cornerRadius: 6,
+                         inset: 0)
+            .onTapGesture(count: 2) { onNavigate(item) }
+            .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
+            .contextMenu { iconContextMenu(item: item) }
     }
 
     private func adjustZoom(by step: Double) {
@@ -255,7 +274,7 @@ struct IconCell: View {
     var body: some View {
         VStack(spacing: 4) {
             ZStack(alignment: .bottomTrailing) {
-                Image(nsImage: item.icon).resizable().interpolation(.high)
+                Image(nsImage: item.icon).resizable()
                     .frame(width: iconSize, height: iconSize)
                     .allowsHitTesting(false)
                 if !item.tagColors.isEmpty {

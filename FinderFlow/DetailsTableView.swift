@@ -114,6 +114,8 @@ struct DetailsTableView: NSViewRepresentable {
         /// right-click to the FileItems behind it.
         var currentFiles: [FileItem] { files }
         private var visibleColumns: [ColumnKind] = []
+        private var lastMenuGroups: [ColumnGroup] = []
+        private var lastMenuColumns: [ColumnKind] = []
         private var isProgrammaticSelection = false
         private var editingRow: Int?
 
@@ -202,6 +204,17 @@ struct DetailsTableView: NSViewRepresentable {
 
         func attachHeaderMenu() {
             guard let tableView, let header = tableView.headerView else { return }
+
+            // Skip rebuilding the menu when neither the available groups nor the visible
+            // columns have changed: re-allocating 15+ NSMenuItems on every minor redraw
+            // added noticeable stutter during view switching.
+            if parent.availableGroups == lastMenuGroups && visibleColumns == lastMenuColumns,
+               header.menu != nil {
+                return
+            }
+            lastMenuGroups = parent.availableGroups
+            lastMenuColumns = visibleColumns
+
             let menu = NSMenu()
             let current = Set(visibleColumns)
 
@@ -272,9 +285,6 @@ struct DetailsTableView: NSViewRepresentable {
                 // (which already updated the rows) is not fought over.
                 syncSelectionIfNeeded(preservingSelection)
             }
-
-            tableView?.reloadData(forRowIndexes: IndexSet(integersIn: 0..<max(files.count, 0)),
-                                  columnIndexes: IndexSet(integersIn: 0..<visibleColumns.count))
         }
 
         /// Apply `ids` to the table only when the table disagrees with it.

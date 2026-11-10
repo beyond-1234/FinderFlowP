@@ -518,11 +518,13 @@ struct ContentView: View {
     @ViewBuilder
     private var fileBrowser: some View {
         routedBrowser
+            .animation(nil, value: viewMode)
     }
 
     @ViewBuilder
     private var routedBrowser: some View {
         browserContent
+            .transaction { $0.animation = nil }
             .browserAreaMarker()
             .background(WindowBinder { window in
                 // Scope this window's router (and its highlight repaints) to the window.
