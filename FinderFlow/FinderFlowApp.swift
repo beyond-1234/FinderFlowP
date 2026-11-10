@@ -153,7 +153,7 @@ struct FinderFlowCommands: Commands {
             Divider()
 
             Button("Check for Updates…") {
-                UpdateManager.shared.checkForUpdates()
+                Task { @MainActor in UpdateManager.shared.checkForUpdates() }
             }
 
             Divider()

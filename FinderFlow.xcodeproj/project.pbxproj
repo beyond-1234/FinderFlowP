@@ -37,9 +37,29 @@
 		DDDDDDDDDDDDDDDDDDDD0002 /* AceEditor in Resources */ = {isa = PBXBuildFile; fileRef = DDDDDDDDDDDDDDDDDDDD0001 /* AceEditor */; };
 		SSSSSSSSSSSSSSSSSSSS0002 /* ArchiveSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSSSSSSSSSSSSSSSSSSS0001 /* ArchiveSecurity.swift */; };
 		SSSSSSSSSSSSSSSSSSSS0003 /* ArchiveSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = SSSSSSSSSSSSSSSSSSSS0001 /* ArchiveSecurity.swift */; };
-		WWWWWWWWWWWWWWWWWWWWWW0002 /* TerminalApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = WWWWWWWWWWWWWWWWWWWWWW0001 /* TerminalApp.swift */; };
 		TTTTTTTTTTTTTTTTTTTT0003 /* ArchiveSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TTTTTTTTTTTTTTTTTTTT0002 /* ArchiveSecurityTests.swift */; };
-		EEEEEEEEEEEEEEEEEEEF0003 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = EEEEEEEEEEEEEEEEEEEF0002 /* Sparkle */; };
+
+		FF1E000000000000000000C8 /* ArchiveDialogPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000064 /* ArchiveDialogPresenter.swift */; };
+		FF1E000000000000000000C9 /* ArchiveRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000065 /* ArchiveRunner.swift */; };
+		FF1E000000000000000000CA /* ArchiveTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000066 /* ArchiveTools.swift */; };
+		FF1E000000000000000000CB /* ColumnValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000067 /* ColumnValues.swift */; };
+		FF1E000000000000000000CC /* CompressDialog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000068 /* CompressDialog.swift */; };
+		FF1E000000000000000000CD /* DetailsTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000069 /* DetailsTableView.swift */; };
+		FF1E000000000000000000CE /* FastTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000006A /* FastTooltip.swift */; };
+		FF1E000000000000000000CF /* FileColumns.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000006B /* FileColumns.swift */; };
+		FF1E000000000000000000D0 /* IconZoomScroll.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000006C /* IconZoomScroll.swift */; };
+		FF1E000000000000000000D1 /* IntegrationLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000006D /* IntegrationLauncher.swift */; };
+		FF1E000000000000000000D2 /* Integrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000006E /* Integrations.swift */; };
+		FF1E000000000000000000D3 /* IntegrationsSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000006F /* IntegrationsSettings.swift */; };
+		FF1E000000000000000000D4 /* ItemHitTesting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000070 /* ItemHitTesting.swift */; };
+		FF1E000000000000000000D5 /* MouseRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000071 /* MouseRouter.swift */; };
+		FF1E000000000000000000D6 /* OpenWith.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000072 /* OpenWith.swift */; };
+		FF1E000000000000000000D7 /* OperationProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000073 /* OperationProgress.swift */; };
+		FF1E000000000000000000D8 /* PreferenceMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000074 /* PreferenceMigration.swift */; };
+		FF1E000000000000000000D9 /* RowCursorEnforcer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000075 /* RowCursorEnforcer.swift */; };
+		FF1E000000000000000000DA /* TooltipTiming.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000076 /* TooltipTiming.swift */; };
+		FF1E000000000000000000DB /* TransferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000077 /* TransferEngine.swift */; };
+		FF1E000000000000000000DC /* WindowOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000078 /* WindowOpener.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -100,10 +120,30 @@
 		FFFFFFFFFFFFFFFF0009 /* MarkdownEditorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditorController.swift; sourceTree = "<group>"; };
 		FFFFFFFFFFFFFFFF000B /* FirstRunSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunSheet.swift; sourceTree = "<group>"; };
 		SSSSSSSSSSSSSSSSSSSS0001 /* ArchiveSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveSecurity.swift; sourceTree = "<group>"; };
-		WWWWWWWWWWWWWWWWWWWWWW0001 /* TerminalApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApp.swift; sourceTree = "<group>"; };
 		TTTTTTTTTTTTTTTTTTTT0001 /* FinderFlowTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FinderFlowTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		TTTTTTTTTTTTTTTTTTTT0002 /* ArchiveSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveSecurityTests.swift; sourceTree = "<group>"; };
 		DDDDDDDDDDDDDDDDDDDD0001 /* AceEditor */ = {isa = PBXFileReference; lastKnownFileType = folder; path = AceEditor; sourceTree = "<group>"; };
+		FF1E00000000000000000064 /* ArchiveDialogPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveDialogPresenter.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000065 /* ArchiveRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveRunner.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000066 /* ArchiveTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveTools.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000067 /* ColumnValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnValues.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000068 /* CompressDialog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressDialog.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000069 /* DetailsTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsTableView.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000006A /* FastTooltip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FastTooltip.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000006B /* FileColumns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileColumns.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000006C /* IconZoomScroll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconZoomScroll.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000006D /* IntegrationLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationLauncher.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000006E /* Integrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Integrations.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000006F /* IntegrationsSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationsSettings.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000070 /* ItemHitTesting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemHitTesting.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000071 /* MouseRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseRouter.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000072 /* OpenWith.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenWith.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000073 /* OperationProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperationProgress.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000074 /* PreferenceMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceMigration.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000075 /* RowCursorEnforcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowCursorEnforcer.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000076 /* TooltipTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TooltipTiming.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000077 /* TransferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferEngine.swift; sourceTree = "<group>"; };
+		FF1E00000000000000000078 /* WindowOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOpener.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,7 +151,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				EEEEEEEEEEEEEEEEEEEF0003 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,7 +223,27 @@
 				FFFFFFFFFFFFFFFF0009 /* MarkdownEditorController.swift */,
 				FFFFFFFFFFFFFFFF000B /* FirstRunSheet.swift */,
 				SSSSSSSSSSSSSSSSSSSS0001 /* ArchiveSecurity.swift */,
-				WWWWWWWWWWWWWWWWWWWWWW0001 /* TerminalApp.swift */,
+				FF1E00000000000000000064 /* ArchiveDialogPresenter.swift */,
+				FF1E00000000000000000065 /* ArchiveRunner.swift */,
+				FF1E00000000000000000066 /* ArchiveTools.swift */,
+				FF1E00000000000000000067 /* ColumnValues.swift */,
+				FF1E00000000000000000068 /* CompressDialog.swift */,
+				FF1E00000000000000000069 /* DetailsTableView.swift */,
+				FF1E0000000000000000006A /* FastTooltip.swift */,
+				FF1E0000000000000000006B /* FileColumns.swift */,
+				FF1E0000000000000000006C /* IconZoomScroll.swift */,
+				FF1E0000000000000000006D /* IntegrationLauncher.swift */,
+				FF1E0000000000000000006E /* Integrations.swift */,
+				FF1E0000000000000000006F /* IntegrationsSettings.swift */,
+				FF1E00000000000000000070 /* ItemHitTesting.swift */,
+				FF1E00000000000000000071 /* MouseRouter.swift */,
+				FF1E00000000000000000072 /* OpenWith.swift */,
+				FF1E00000000000000000073 /* OperationProgress.swift */,
+				FF1E00000000000000000074 /* PreferenceMigration.swift */,
+				FF1E00000000000000000075 /* RowCursorEnforcer.swift */,
+				FF1E00000000000000000076 /* TooltipTiming.swift */,
+				FF1E00000000000000000077 /* TransferEngine.swift */,
+				FF1E00000000000000000078 /* WindowOpener.swift */,
 				DDDDDDDDDDDDDDDDDDDD0001 /* AceEditor */,
 			);
 			path = FinderFlow;
@@ -235,7 +294,6 @@
 			);
 			name = FinderFlow;
 			packageProductDependencies = (
-				EEEEEEEEEEEEEEEEEEEF0002 /* Sparkle */,
 			);
 			productName = FinderFlow;
 			productReference = AAAAAAAAAAAAAAAAAAAA000F /* FinderFlow.app */;
@@ -306,7 +364,6 @@
 			projectDirPath = "";
 			projectRoot = "";
 			packageReferences = (
-				EEEEEEEEEEEEEEEEEEEF0001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			targets = (
 				AAAAAAAAAAAAAAAAAAAA0002 /* FinderFlow */,
@@ -371,7 +428,27 @@
 				FFFFFFFFFFFFFFFF000A /* MarkdownEditorController.swift in Sources */,
 				FFFFFFFFFFFFFFFF000C /* FirstRunSheet.swift in Sources */,
 				SSSSSSSSSSSSSSSSSSSS0002 /* ArchiveSecurity.swift in Sources */,
-				WWWWWWWWWWWWWWWWWWWWWW0002 /* TerminalApp.swift in Sources */,
+				FF1E000000000000000000C8 /* ArchiveDialogPresenter.swift in Sources */,
+				FF1E000000000000000000C9 /* ArchiveRunner.swift in Sources */,
+				FF1E000000000000000000CA /* ArchiveTools.swift in Sources */,
+				FF1E000000000000000000CB /* ColumnValues.swift in Sources */,
+				FF1E000000000000000000CC /* CompressDialog.swift in Sources */,
+				FF1E000000000000000000CD /* DetailsTableView.swift in Sources */,
+				FF1E000000000000000000CE /* FastTooltip.swift in Sources */,
+				FF1E000000000000000000CF /* FileColumns.swift in Sources */,
+				FF1E000000000000000000D0 /* IconZoomScroll.swift in Sources */,
+				FF1E000000000000000000D1 /* IntegrationLauncher.swift in Sources */,
+				FF1E000000000000000000D2 /* Integrations.swift in Sources */,
+				FF1E000000000000000000D3 /* IntegrationsSettings.swift in Sources */,
+				FF1E000000000000000000D4 /* ItemHitTesting.swift in Sources */,
+				FF1E000000000000000000D5 /* MouseRouter.swift in Sources */,
+				FF1E000000000000000000D6 /* OpenWith.swift in Sources */,
+				FF1E000000000000000000D7 /* OperationProgress.swift in Sources */,
+				FF1E000000000000000000D8 /* PreferenceMigration.swift in Sources */,
+				FF1E000000000000000000D9 /* RowCursorEnforcer.swift in Sources */,
+				FF1E000000000000000000DA /* TooltipTiming.swift in Sources */,
+				FF1E000000000000000000DB /* TransferEngine.swift in Sources */,
+				FF1E000000000000000000DC /* WindowOpener.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -513,7 +590,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.5.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.finderflow.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.finderflowp.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -538,7 +615,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.5.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.finderflow.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.finderflowp.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -560,7 +637,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 1.5.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.finderflow.app.extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.finderflowp.app.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -583,7 +660,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				MARKETING_VERSION = 1.5.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.finderflow.app.extension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.finderflowp.app.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -600,7 +677,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.5.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.finderflow.app.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.finderflowp.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
@@ -616,7 +693,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.5.4;
-				PRODUCT_BUNDLE_IDENTIFIER = com.finderflow.app.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.finderflowp.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
@@ -664,24 +741,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		EEEEEEEEEEEEEEEEEEEF0001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		EEEEEEEEEEEEEEEEEEEF0002 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EEEEEEEEEEEEEEEEEEEF0001 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AAAAAAAAAAAAAAAAAAAA0001 /* Project object */;
 }

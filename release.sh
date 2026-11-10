@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# release.sh — Build a Universal (Apple Silicon + Intel) Release of FinderFlow
+# release.sh — Build a Universal (Apple Silicon + Intel) Release of FinderFlowP
 # and package it into a distributable .dmg for GitHub Releases.
 #
 # Usage:  ./release.sh
@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="FinderFlow"
+APP_NAME="FinderFlowP"
 SCHEME="FinderFlow"
 CONFIG="Release"
 PROJECT="FinderFlow.xcodeproj"
@@ -72,35 +72,35 @@ mkdir -p "$STAGE/.background"
 cp "dmg/background.png" "$STAGE/.background/background.png"
 
 cat > "$STAGE/Install & First Open.txt" <<'EOF'
-FinderFlow — Install & First Open
+FinderFlowP — Install & First Open
 =================================
 
-1. Drag FinderFlow onto the Applications folder in this window.
+1. Drag FinderFlowP onto the Applications folder in this window.
 
 2. FIRST OPEN (safe, one-time):
-   FinderFlow is free & open-source and is not signed with a paid Apple
+   FinderFlowP is free & open-source and is not signed with a paid Apple
    Developer certificate. macOS Gatekeeper will block it once — that is
    expected and safe.
 
    Sequoia / recent macOS:
-     • Open FinderFlow once (it may be blocked or only offer Move to Trash).
+     • Open FinderFlowP once (it may be blocked or only offer Move to Trash).
      • Open System Settings → Privacy & Security.
-     • Scroll to the message about FinderFlow and click Open Anyway.
-     • Open FinderFlow again and confirm.
+     • Scroll to the message about FinderFlowP and click Open Anyway.
+     • Open FinderFlowP again and confirm.
 
    Quick alternative — double-click "Fix Gatekeeper.command" in this window
    (after the app is in Applications). It only clears quarantine on
-   /Applications/FinderFlow.app and then opens the app. No network, no password.
+   /Applications/FinderFlowP.app and then opens the app. No network, no password.
 
    Or in Terminal:
-     xattr -dr com.apple.quarantine /Applications/FinderFlow.app
+     xattr -dr com.apple.quarantine /Applications/FinderFlowP.app
 
 3. Folder permission prompts (normal — click Allow):
    Desktop / Documents / Downloads access, plus occasional Finder/Terminal
    control prompts for Get Info / Open in Terminal.
 
 4. Optional Finder right-click menu:
-   System Settings → General → Login Items & Extensions → Extensions → FinderFlow.
+   System Settings → General → Login Items & Extensions → Extensions → FinderFlowP.
 
 Requirements: macOS 14 Sonoma or newer · Apple Silicon & Intel.
 
@@ -193,9 +193,9 @@ cat > "$APPCAST" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>FinderFlow</title>
+    <title>FinderFlowP</title>
     <link>https://gtarafdar.github.io/FinderFlow/appcast.xml</link>
-    <description>Signed FinderFlow updates.</description>
+    <description>Signed FinderFlowP updates.</description>
     <language>en</language>
     <item>
       <title>Version ${VERSION}</title>

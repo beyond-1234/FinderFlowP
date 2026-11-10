@@ -1,18 +1,18 @@
 #!/bin/bash
-# FinderFlow — build and package a shareable DMG (no Apple account needed)
+# FinderFlowP — build and package a shareable DMG (no Apple account needed)
 # Usage:  cd ~/Downloads/FinderFlow && ./distribute.sh
-# Output: build/FinderFlow.dmg
+# Output: build/FinderFlowP.dmg
 
 set -e
 cd "$(dirname "$0")"
 
-APP="FinderFlow"
+APP="FinderFlowP"
 BUILD_DIR="build/app"
 DMG="build/$APP.dmg"
 STAGING="build/dmg_stage"
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  FinderFlow — build & package"
+echo "  FinderFlowP — build & package"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 mkdir -p build
@@ -49,7 +49,7 @@ cp -R "$APP_PATH" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
 hdiutil create \
-    -volname "FinderFlow" \
+    -volname "FinderFlowP" \
     -srcfolder "$STAGING" \
     -ov -format UDZO \
     "$DMG" > /dev/null
@@ -69,7 +69,7 @@ echo "  → Upload to Google Drive, Dropbox, or WeTransfer"
 echo "  → Send the download link to anyone"
 echo ""
 echo "  Recipients open it like this:"
-echo "  1. Double-click FinderFlow.dmg"
-echo "  2. Drag FinderFlow → Applications"
-echo "  3. Right-click FinderFlow.app → Open  (first time only)"
+echo "  1. Double-click FinderFlowP.dmg"
+echo "  2. Drag FinderFlowP → Applications"
+echo "  3. Right-click FinderFlowP.app → Open  (first time only)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

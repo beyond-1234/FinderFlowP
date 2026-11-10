@@ -1,70 +1,41 @@
 import AppKit
-#if canImport(Sparkle)
-import Sparkle
-#endif
 
-/// Signed updates via Sparkle (when available).
+// MARK: - Update checking
+//
+// This fork is self-hosted: it is not published through FinderFlow's release channel,
+// so shipping an auto-updater pointed at the upstream appcast would offer updates that
+// overwrite local changes. Sparkle was removed deliberately.
+//
+// The type is kept so the rest of the app (Settings, menu command) does not need to
+// know about it. If you later publish your own builds, wire your update mechanism in
+// here and the UI will pick it up.
+
 @MainActor
 final class UpdateManager: NSObject, ObservableObject {
 
     static let shared = UpdateManager()
 
-    #if canImport(Sparkle)
-    private let controller: SPUStandardUpdaterController
-    #endif
-    private static let migratedAutoCheckKey = "ffSparkleAutoCheckMigrated"
-
-    private override init() {
-        #if canImport(Sparkle)
-        controller = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
-        #endif
-        super.init()
-        #if canImport(Sparkle)
-        migrateAutoCheckPreference()
-        #endif
-    }
+    private override init() { super.init() }
 
     var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 
-    /// Settings → Updates.
+    /// No updater is installed, so there is nothing to toggle.
     var autoCheckEnabled: Bool {
-        get {
-            #if canImport(Sparkle)
-            return controller.updater.automaticallyChecksForUpdates
-            #else
-            return false
-            #endif
-        }
-        set {
-            #if canImport(Sparkle)
-            controller.updater.automaticallyChecksForUpdates = newValue
-            #endif
-        }
+        get { false }
+        set { _ = newValue }
     }
 
-    nonisolated func checkForUpdates() {
-        #if canImport(Sparkle)
-        Task { @MainActor in
-            Self.shared.controller.checkForUpdates(nil)
-        }
-        #endif
+    /// Tells the user why nothing happens instead of failing silently.
+    func checkForUpdates() {
+        let alert = NSAlert()
+        alert.messageText = "Updates are not configured"
+        alert.informativeText = """
+        This build is your own fork, so it does not check FinderFlow's release channel. \
+        Rebuild it from your repository to get the latest changes.
+        """
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
-
-    #if canImport(Sparkle)
-    /// Older builds stored this in `ffAutoCheck`. Sparkle uses its own default after migration.
-    private func migrateAutoCheckPreference() {
-        let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: Self.migratedAutoCheckKey) else { return }
-        if defaults.object(forKey: "ffAutoCheck") != nil {
-            controller.updater.automaticallyChecksForUpdates = defaults.bool(forKey: "ffAutoCheck")
-        }
-        defaults.set(true, forKey: Self.migratedAutoCheckKey)
-    }
-    #endif
 }

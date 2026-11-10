@@ -23,15 +23,9 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2024 FinderFlow. All rights reserved.</string>
+	<string>FinderFlowP — a fork of FinderFlow (MIT License).</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>SUFeedURL</key>
-	<string>https://gtarafdar.github.io/FinderFlow/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>Qfgb470ED3nQ+us9ULoqp9JiEqIFBNdrHom3r6au2K4=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

@@ -74,22 +74,14 @@ struct SettingsView: View {
     @AppStorage(UserPreferences.groupByKey)        private var groupByRaw     = UserPreferences.defaultGroupBy.rawValue
     @AppStorage(UserPreferences.folderOrderKey)    private var folderOrderRaw = UserPreferences.defaultFolderOrder.rawValue
 
-    private var autoCheckBinding: Binding<Bool> {
-        Binding(
-            get: { updateManager.autoCheckEnabled },
-            set: { updateManager.autoCheckEnabled = $0 }
-        )
-    }
-
     var body: some View {
         Form {
             Section("Updates") {
                 LabeledContent("Version", value: updateManager.currentVersion)
-                Toggle("Check for updates automatically", isOn: autoCheckBinding)
                 Button("Check for Updates…") {
                     updateManager.checkForUpdates()
                 }
-                Text("Sparkle installs an update only when it carries the maintainer's signature. Version 1.5.2 and earlier need one manual download from GitHub.")
+                Text("This build is your own fork and is not wired to an update server. Rebuild it from your repository to pick up changes.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
