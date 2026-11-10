@@ -58,7 +58,8 @@ struct ListView: View {
             files: files,
             selectedIDs: $selectedIDs,
             columns: visibleColumns,
-            profile: columnProfile,
+            availableGroups: availableGroups,
+            groupCounts: groupCounts,
             currentFolder: currentPath,
             hasFolderOverride: ColumnConfigStore.shared.hasOverride(forFolder: currentPath),
             sortField: sortField,
@@ -107,6 +108,10 @@ struct ListView: View {
             refreshColumnsFromStore()
             loadMetadataIfNeeded()
         }
+        .onChange(of: files) { _ in
+            // The folder contents changed: re-scan which groups are worth offering.
+            refreshAvailableGroups()
+        }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
                 FolderBackgroundMenu(currentPath: currentPath)
@@ -122,14 +127,22 @@ struct ListView: View {
     }
 
     /// Column layout is stable across folders: this reads the folder's override if it
-    /// has one, otherwise the global default. The detected profile only influences the
-    /// order of suggestions in the header menu.
-    @State private var columnProfile: ColumnProfile = .generic
+    /// has one, otherwise the global default. File-type detection only decides which
+    /// groups the header menu offers — it never adds columns on its own.
+    @State private var availableGroups: [ColumnGroup] = [.general]
+    @State private var groupCounts: [ColumnGroup: Int] = [:]
     @State private var visibleColumns: [ColumnKind] = ColumnConfigStore.shared.defaultConfig.order
 
     private func refreshColumnsFromStore() {
-        columnProfile = ColumnProfile.detect(from: files)
         visibleColumns = ColumnConfigStore.shared.config(forFolder: currentPath).order
+        refreshAvailableGroups()
+    }
+
+    /// Re-scan the extensions present so the header menu can group its candidates.
+    private func refreshAvailableGroups() {
+        let scan = FileTypeScanner.scan(files)
+        if scan.groups != availableGroups { availableGroups = scan.groups }
+        if scan.counts != groupCounts { groupCounts = scan.counts }
     }
 
     /// Media columns need a metadata pass; only run it when one is visible.

@@ -16,8 +16,11 @@ struct DetailsTableView: NSViewRepresentable {
     @Binding var selectedIDs: Set<String>
     /// Visible columns in display order.
     let columns: [ColumnKind]
-    /// Active profile — decides which columns the header menu offers.
-    let profile: ColumnProfile
+    /// File types present in this folder — decides which column groups the header
+    /// menu offers. It never changes the visible columns by itself.
+    let availableGroups: [ColumnGroup]
+    /// Files per group, shown as a hint in the menu.
+    let groupCounts: [ColumnGroup: Int]
     /// Folder whose column override (if any) is in use.
     let currentFolder: URL
     let hasFolderOverride: Bool
@@ -196,41 +199,34 @@ struct DetailsTableView: NSViewRepresentable {
             title.isEnabled = false
             menu.addItem(title)
 
-            // Suggested columns for this folder type come first, unchecked. Ticking one
-            // is what actually adds it — nothing is added automatically.
-            let suggested = ColumnKind.menuOrder(for: parent.profile)
-            for kind in suggested {
-                let item = NSMenuItem(title: kind.title,
-                                      action: #selector(toggleColumn(_:)),
-                                      keyEquivalent: "")
-                item.target = self
-                item.representedObject = kind.rawValue
-                item.state = current.contains(kind) ? .on : .off
-                item.isEnabled = kind != .name
-                menu.addItem(item)
-            }
+            // One section per file-type group that actually occurs in this folder.
+            // Everything listed here is a *candidate*; nothing is turned on for you.
+            for group in parent.availableGroups {
+                let groupItem = NSMenuItem(title: group.title, action: nil, keyEquivalent: "")
+                groupItem.isEnabled = false
+                menu.addItem(groupItem)
 
-            let extras = ColumnKind.allCases.filter { !suggested.contains($0) }
-            if !extras.isEmpty {
-                menu.addItem(.separator())
-                let more = NSMenuItem(title: "Other", action: nil, keyEquivalent: "")
-                more.isEnabled = false
-                menu.addItem(more)
-                for kind in extras {
-                    let item = NSMenuItem(title: kind.title,
+                for kind in group.columns {
+                    let item = NSMenuItem(title: "   " + kind.title,
                                           action: #selector(toggleColumn(_:)),
                                           keyEquivalent: "")
                     item.target = self
                     item.representedObject = kind.rawValue
                     item.state = current.contains(kind) ? .on : .off
+                    // Name is the anchor column and cannot be hidden.
+                    item.isEnabled = kind != .name
+                    if let count = parent.groupCounts[group], group != .general {
+                        item.toolTip = "\(count) matching file\(count == 1 ? "" : "s") in this folder"
+                    }
                     menu.addItem(item)
                 }
             }
 
             menu.addItem(.separator())
-            let reset = NSMenuItem(title: parent.hasFolderOverride
-                                        ? "Use Default Columns for This Folder"
-                                        : "Reset Default Columns",
+            let resetTitle = parent.hasFolderOverride
+                ? "Use Default Columns for This Folder"
+                : "Reset Default Columns"
+            let reset = NSMenuItem(title: resetTitle,
                                    action: #selector(resetColumns),
                                    keyEquivalent: "")
             reset.target = self
