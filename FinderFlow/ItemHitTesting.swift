@@ -44,7 +44,7 @@ final class ItemHitView: NSView {
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard isHighlighted, !isHostedByTableView else { return }
+        guard isHighlighted, !isInsideTableView else { return }
         let rect = bounds.insetBy(dx: highlightInset, dy: highlightInset)
         guard rect.width > 0, rect.height > 0 else { return }
 
@@ -62,7 +62,7 @@ final class ItemHitView: NSView {
     /// Rows inside a SwiftUI Table are already highlighted by NSTableView itself;
     /// drawing here too would double-paint (and is what produced the border-then-fill
     /// flash). Only standalone cells such as the icon grid paint their own highlight.
-    private var isHostedByTableView: Bool {
+    var isInsideTableView: Bool {
         var candidate: NSView? = superview
         while let view = candidate {
             if view is NSTableView { return true }
@@ -149,14 +149,22 @@ final class ItemHitRegistry {
 }
 
 /// Transparent registration layer used behind an item cell.
+///
+/// `isSelected` is the authoritative SwiftUI selection: the AppKit view repaints
+/// whenever SwiftUI's state changes, so highlights stay correct for *every* way the
+/// selection can change (mouse router, keyboard, Cmd-click, select-all, reveal).
+/// The mouse router may paint optimistically first for right/middle click latency;
+/// the next SwiftUI update confirms it.
 struct ItemHitArea: NSViewRepresentable {
     let itemID: String
+    var isSelected: Bool = false
     var cornerRadius: CGFloat = 6
     var inset: CGFloat = 1
 
     func makeNSView(context: Context) -> ItemHitView {
         let v = ItemHitView()
         v.itemID = itemID
+        v.isHighlighted = isSelected
         v.highlightCornerRadius = cornerRadius
         v.highlightInset = inset
         return v
@@ -166,6 +174,10 @@ struct ItemHitArea: NSViewRepresentable {
         view.itemID = itemID
         view.highlightCornerRadius = cornerRadius
         view.highlightInset = inset
+        // Outside an NSTableView the cell owns its highlight, so mirror SwiftUI.
+        if !view.isInsideTableView {
+            view.isHighlighted = isSelected
+        }
     }
 }
 
@@ -173,9 +185,13 @@ extension View {
     /// Register this cell's geometry so the global click router can resolve it, and
     /// let it draw the selection highlight in AppKit for instant feedback.
     func itemHitArea(_ itemID: String,
+                     isSelected: Bool = false,
                      cornerRadius: CGFloat = 6,
                      inset: CGFloat = 1) -> some View {
-        background(ItemHitArea(itemID: itemID, cornerRadius: cornerRadius, inset: inset))
+        background(ItemHitArea(itemID: itemID,
+                               isSelected: isSelected,
+                               cornerRadius: cornerRadius,
+                               inset: inset))
     }
 }
 

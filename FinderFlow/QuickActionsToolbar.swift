@@ -50,13 +50,18 @@ struct QuickActionsToolbar: View {
                 separator
                 viewGroup
             }
+            // Let the middle groups compress before anything gets pushed out of the
+            // window; the sort group keeps its width.
+            .layoutPriority(1)
 
             Spacer(minLength: 8)
 
             sortGroup
+                .layoutPriority(2)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
+        .frame(minWidth: 0, maxWidth: .infinity)
         .background(.bar)
         .overlay(alignment: .bottom) { Divider() }
         .onAppear { integrations.resolveIfNeeded() }

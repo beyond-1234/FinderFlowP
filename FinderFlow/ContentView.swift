@@ -172,7 +172,9 @@ struct ContentView: View {
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: toastItem?.id)
         }
-        .frame(minWidth: 860, minHeight: 520)
+        // Sized from the *content*, not the other way round: a hard minimum wider
+        // than a restored window made the content overflow and every edge got clipped.
+        .frame(minWidth: 720, minHeight: 420)
         .background(QLResponderSetup())
         .providingNewWindowOpener()
         .onReceive(NotificationCenter.default.publisher(for: .openFolderInNewWindow)) { note in

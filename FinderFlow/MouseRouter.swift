@@ -60,6 +60,9 @@ final class MouseRouter: ObservableObject {
         if selectionIntent == ids { selectionIntent = nil }
         currentSelection = ids
         if ids.count == 1 { lastAnchorID = ids.first }
+        // Keep the AppKit-painted highlights in step when the selection changes from
+        // anywhere other than the mouse router (keyboard, Cmd+A, reveal, undo…).
+        ItemHitRegistry.shared.applyHighlight(ids)
     }
 
     // MARK: - Event handling

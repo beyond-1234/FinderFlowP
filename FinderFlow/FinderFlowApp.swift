@@ -14,6 +14,9 @@ struct FinderFlowApp: App {
         WindowGroup(for: URL.self) { $url in
             ContentView(initialPath: url)
                 .environmentObject(favorites)
+                // Let the window own the size; the content just fills it. Without this
+                // a restored window smaller than the content clipped all four edges.
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } defaultValue: {
             FileManager.default.homeDirectoryForCurrentUser
         }

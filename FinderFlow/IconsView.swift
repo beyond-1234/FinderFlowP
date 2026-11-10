@@ -27,7 +27,10 @@ struct IconsView: View {
                                              iconSize: CGFloat(iconSize),
                                              isSelected: selectedIDs.contains(item.id))
                                         .contentShape(Rectangle())
-                                        .itemHitArea(item.id)
+                                        .itemHitArea(item.id,
+                                                     isSelected: selectedIDs.contains(item.id),
+                                                     cornerRadius: 6,
+                                                     inset: 0)
                                         .onTapGesture(count: 2) { onNavigate(item) }
                                         .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
                                         .contextMenu { iconContextMenu(item: item) }
@@ -257,7 +260,7 @@ struct IconCell: View {
                 }
             }
             Text(item.name).font(.caption).lineLimit(2).multilineTextAlignment(.center)
-                .foregroundStyle(isSelected ? .white : .primary)
+                .foregroundStyle(isSelected ? Color.white : Color.primary)
                 .allowsHitTesting(false)
         }
         .padding(6).frame(maxWidth: .infinity)
