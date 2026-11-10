@@ -54,67 +54,51 @@ struct ListView: View {
     // MARK: - Table (non-grouped)
 
     private var tableView: some View {
-        Table(files, selection: $selectedIDs, sortOrder: $sortOrder) {
-            TableColumn("Name", value: \.name) { item in
-                fileNameCell(for: item)
-                    .itemHitArea(item.id)
-                    .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
-            }
-            .width(min: 140, ideal: 280, max: 600)
-
-            TableColumn("Date Modified", value: \.dateModified) { item in
-                Text(item.formattedDateModified).foregroundStyle(.secondary)
-            }.width(min: 100, ideal: 148, max: 240)
-
-            TableColumn("Date Created", value: \.dateCreated) { item in
-                Text(item.formattedDateCreated).foregroundStyle(.secondary)
-            }.width(min: 100, ideal: 148, max: 240)
-
-            TableColumn("Size", value: \.size) { item in
-                Text(item.formattedSize).foregroundStyle(.secondary).monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }.width(min: 50, ideal: 80, max: 140)
-
-            TableColumn("Kind", value: \.kind) { item in
-                Text(item.kind).foregroundStyle(.secondary)
-            }.width(min: 60, ideal: 110, max: 200)
-
-            TableColumn("Extension", value: \.fileExtension) { item in
-                Text(item.fileExtension.isEmpty ? "—" : item.fileExtension.uppercased())
-                    .foregroundStyle(.secondary)
-            }.width(min: 40, ideal: 68, max: 120)
-        }
-        .onChange(of: sortOrder) { order in
-            guard let first = order.first else { return }
-            sortAscending = (first.order == .forward)
-            switch first.keyPath {
-            case \FileItem.name:          sortField = .name
-            case \FileItem.dateModified:  sortField = .dateModified
-            case \FileItem.dateCreated:   sortField = .dateCreated
-            case \FileItem.size:          sortField = .size
-            case \FileItem.kind:          sortField = .kind
-            case \FileItem.fileExtension: sortField = .ext
-            default: break
-            }
-        }
-        .onChange(of: sortField) { _ in syncSortOrder() }
-        .onChange(of: sortAscending) { _ in syncSortOrder() }
-        .onChange(of: files) { newFiles in
-            if let id = renamingID, !newFiles.contains(where: { $0.id == id }) {
-                renamingID = nil
-            }
-        }
-        .onChange(of: renameActive) { active in
-            guard !active, let id = renamingID,
-                  let item = files.first(where: { $0.id == id }) else { return }
-            commitRename(for: item)
-        }
+        DetailsTableView(
+            files: files,
+            selectedIDs: $selectedIDs,
+            columns: visibleColumns,
+            sortField: sortField,
+            sortAscending: sortAscending,
+            renamingID: renamingID,
+            renameText: $renameText,
+            onRename: { item in startRename(item: item) },
+            onCommitRename: { item, text in commitRename(item: item, text: text) },
+            onCancelRename: { cancelRename() },
+            onOpen: { item in onNavigate(item) },
+            onSort: { field, ascending in
+                sortField = field
+                sortAscending = ascending
+            },
+            onReorder: { order in
+                ColumnConfigStore.shared.setOrder(order, for: columnProfile)
+                visibleColumns = order
+            },
+            onResize: { kind, width in
+                ColumnConfigStore.shared.setWidth(width, for: kind, profile: columnProfile)
+            },
+            onToggleColumn: { kind in
+                ColumnConfigStore.shared.toggle(kind, in: columnProfile)
+                visibleColumns = ColumnConfigStore.shared.config(for: columnProfile).order
+                loadMetadataIfNeeded()
+            },
+            onResetColumns: {
+                ColumnConfigStore.shared.reset(columnProfile)
+                visibleColumns = ColumnConfigStore.shared.config(for: columnProfile).order
+                loadMetadataIfNeeded()
+            },
+            onContextMenu: { _ in nil }
+        )
         .onAppear {
-            syncSortOrder()
             attachKeyboardMonitor()
+            refreshColumnProfile()
+            loadMetadataIfNeeded()
         }
         .onDisappear {
             removeKeyboardMonitor()
+        }
+        .onChange(of: files) { _ in
+            refreshColumnProfile()
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
@@ -123,48 +107,36 @@ struct ListView: View {
                 contextMenu(for: ids)
             }
         }
-        primaryAction: { ids in
-            guard renamingID == nil else { return }
-            if let id = ids.first, let item = files.first(where: { $0.id == id }) {
-                onNavigate(item)
-            }
-        }
         .background(
             Button("") { quickLook(ids: selectedIDs) }
                 .keyboardShortcut(.space, modifiers: []).hidden()
         )
-        // Clears the column-resize cursor once the pointer leaves the header, without
-        // any SwiftUI work (see RowCursorEnforcer for why that matters).
         .background(RowCursorEnforcer())
     }
 
-    @ViewBuilder
-    private func fileNameCell(for item: FileItem) -> some View {
-        HStack(spacing: 6) {
-            Image(nsImage: item.icon).resizable().frame(width: 16, height: 16)
-                .allowsHitTesting(false)
-            if renamingID == item.id {
-                TextField("", text: $renameText)
-                    .textFieldStyle(.plain)
-                    .resetsCursorOnExit()
-                    .focused($renameActive)
-                    .onSubmit {
-                        if let it = files.first(where: { $0.id == renamingID }) {
-                            commitRename(for: it)
-                        }
-                    }
-                    .onExitCommand { cancelRename() }
-            } else {
-                Text(item.name).lineLimit(1)
-                    .foregroundStyle(fileOps.isCut && fileOps.clipboardURLs.contains(item.url)
-                                     ? Color.secondary : Color.primary)
-                    .allowsHitTesting(false)
-            }
-            TagDotsView(colors: item.tagColors, size: 10)
-                .allowsHitTesting(false)
+    /// Columns come from the profile that matches this folder's contents, so a photo
+    /// folder shows Dimensions while a source folder shows Type.
+    @State private var columnProfile: ColumnProfile = .generic
+    @State private var visibleColumns: [ColumnKind] = ColumnConfigStore.shared
+        .config(for: .generic).order
+
+    private func refreshColumnProfile() {
+        let profile = ColumnProfile.detect(from: files)
+        guard profile != columnProfile else { return }
+        columnProfile = profile
+        visibleColumns = ColumnConfigStore.shared.config(for: profile).order
+        loadMetadataIfNeeded()
+    }
+
+    /// Media columns need a metadata pass; only run it when one is visible.
+    private func loadMetadataIfNeeded() {
+        let needed = Set(visibleColumns).intersection([
+            .dimensions, .duration, .title, .artist, .album, .pageCount, .version
+        ])
+        guard !needed.isEmpty else { return }
+        ColumnValueLoader.shared.load(files, kinds: needed) {
+            // Trigger a redraw of just the visible metadata cells.
         }
-        .opacity(fileOps.isCut && fileOps.clipboardURLs.contains(item.url) ? 0.45 : 1.0)
-        .contentShape(Rectangle())
     }
 
     private func syncSortOrder() {
@@ -239,11 +211,11 @@ struct ListView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { renameActive = true }
     }
 
-    private func commitRename(for item: FileItem) {
+    private func commitRename(item: FileItem, text: String) {
         renamingID   = nil
         renameActive = false
         guard !renameCancelled else { renameCancelled = false; return }
-        let name = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name != item.name else { return }
         fileOps.rename(item.url, to: name, reload: onReload)
     }

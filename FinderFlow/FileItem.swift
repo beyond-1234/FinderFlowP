@@ -202,6 +202,21 @@ struct FileItem: Identifiable, Hashable {
     var formattedDateModified: String { Self.cachedDate(dateModified) }
     var formattedDateCreated:  String { Self.cachedDate(dateCreated) }
 
+    /// "Read, write" style permissions, as a Details column would show them.
+    var formattedPermissions: String {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let mode = attributes[.posixPermissions] as? NSNumber else { return "—" }
+        let value = mode.uint16Value
+        let readable = (value & 0o400) != 0
+        let writable = (value & 0o200) != 0
+        let executable = (value & 0o100) != 0
+        var parts: [String] = []
+        if readable { parts.append("read") }
+        if writable { parts.append("write") }
+        if executable { parts.append("execute") }
+        return parts.isEmpty ? "—" : parts.joined(separator: ", ")
+    }
+
     private static let sizeFormatter: ByteCountFormatter = {
         let f = ByteCountFormatter()
         f.countStyle = .file
