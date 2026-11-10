@@ -54,7 +54,7 @@ struct PathBarView: View {
                     Button {
                         currentPath = component
                     } label: {
-                        Text(component.lastPathComponent.isEmpty ? "/" : component.lastPathComponent)
+                        Text(displayName(for: component))
                             .font(.system(size: 12))
                             .foregroundStyle(component == currentPath ? .primary : .secondary)
                     }
@@ -71,6 +71,11 @@ struct PathBarView: View {
         .onTapGesture(count: 2) {
             beginEditing()
         }
+    }
+
+    private func displayName(for url: URL) -> String {
+        if url.lastPathComponent == ".Trash" { return "Trash" }
+        return url.lastPathComponent.isEmpty ? "/" : url.lastPathComponent
     }
 
     private var pathComponents: [URL] {

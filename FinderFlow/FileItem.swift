@@ -493,16 +493,56 @@ func groupedItems(_ items: [FileItem], by grouping: GroupBy) -> [FileGroup] {
     }
 }
 
+func isTrashURL(_ url: URL) -> Bool {
+    if let trash = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask).first,
+       trash.path == url.path {
+        return true
+    }
+    return url.path.hasSuffix("/.Trash") || url.lastPathComponent == ".Trash" || url.path.contains("/.Trashes/")
+}
+
+func loadTrashItemsViaFinder() -> [FileItem] {
+    let script = NSAppleScript(source: "tell application \"Finder\" to return URL of every item of trash")
+    var err: NSDictionary?
+    guard let res = script?.executeAndReturnError(&err) else {
+        return []
+    }
+    var items: [FileItem] = []
+    let count = res.numberOfItems
+    items.reserveCapacity(count)
+    for i in 1...count {
+        guard let urlStr = res.atIndex(i)?.stringValue,
+              let itemURL = URL(string: urlStr) else { continue }
+        if let item = FileItem.load(from: itemURL) {
+            items.append(item)
+        }
+    }
+    return items
+}
+
 func loadItems(at url: URL, showHidden: Bool) -> [FileItem] {
     let opts: FileManager.DirectoryEnumerationOptions = showHidden ? [] : [.skipsHiddenFiles]
     let keys = FileItem.resourceKeys
-    guard let urls = try? FileManager.default.contentsOfDirectory(
+    if let urls = try? FileManager.default.contentsOfDirectory(
         at: url, includingPropertiesForKeys: keys, options: opts
-    ) else { return [] }
-    var items: [FileItem] = []
-    items.reserveCapacity(urls.count)
-    for child in urls {
-        if let item = FileItem.load(from: child) { items.append(item) }
+    ) {
+        var items: [FileItem] = []
+        items.reserveCapacity(urls.count)
+        for child in urls {
+            if let item = FileItem.load(from: child) { items.append(item) }
+        }
+        return items
     }
-    return items
+
+    // Fallback: ~/.Trash directory enumeration is blocked by macOS TCC privacy restriction
+    // unless Full Disk Access is granted. Querying Finder directly recovers all trash items.
+    if isTrashURL(url) {
+        let trashItems = loadTrashItemsViaFinder()
+        if !showHidden {
+            return trashItems.filter { !$0.isHidden }
+        }
+        return trashItems
+    }
+
+    return []
 }
