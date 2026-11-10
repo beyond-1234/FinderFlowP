@@ -1,344 +1,149 @@
 <div align="center">
 
-<img src="docs/assets/icon.png" alt="FinderFlow" width="120" height="120" />
+<img src="docs/assets/icon.png" alt="FinderFlowP" width="120" height="120" />
 
-# FinderFlow
+# FinderFlowP
 
-**The Mac file manager Finder should have shipped.**
+**The power of Windows File Explorer and KDE Dolphin, crafted natively for macOS.**
 
-A fast, native macOS file browser with a built-in code editor, a Markdown
-reader, real Finder-compatible color tags, Spotlight search, archive tools, and
-one-click "open in Terminal / VS Code / Cursor / Claude Code / Codex" — in one
-self-contained app that runs entirely on your Mac.
+A blazing-fast, customized macOS file manager for developers, power users, and anyone who prefers keyboard-first navigation and instant mouse interactions without sacrificing native macOS design.
 
-[![Latest release](https://img.shields.io/github/v/release/Gtarafdar/FinderFlow?label=release&color=2D52E0)](../../releases)
-[![Downloads](https://img.shields.io/github/downloads/Gtarafdar/FinderFlow/total?color=2D52E0)](../../releases)
-![Platform](https://img.shields.io/badge/macOS-14%2B-2D52E0)
+[![Platform](https://img.shields.io/badge/macOS-13.0%2B-2D52E0)](https://github.com/beyond-1234/FinderFlowP)
 ![Universal](https://img.shields.io/badge/Universal-Apple%20Silicon%20%2B%20Intel-444)
 [![License](https://img.shields.io/badge/License-MIT-444)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/Gtarafdar/FinderFlow?style=flat&color=FF6B5C)](../../stargazers)
+[![Repo](https://img.shields.io/badge/GitHub-beyond--1234%2FFinderFlowP-blue)](https://github.com/beyond-1234/FinderFlowP)
 
-**[⬇ Download the latest release](../../releases/latest)** ·
-**[🌐 Landing page](https://gtarafdar.github.io/FinderFlow/)** ·
-**[⭐ Star](../../stargazers)** ·
-**[❤️ Donate](https://gtarafdar.com/donate)**
-
-`macOS 14+` · `Apple Silicon + Intel (universal)` · `≈ 6.8 MB` · `Free & open source (MIT)`
+`macOS 13+` · `Apple Silicon + Intel (Universal)` · `Native Swift / SwiftUI + AppKit` · `Free & Open Source (MIT)`
 
 </div>
 
 ---
 
-## What it is
+## Highlights
 
-FinderFlow is a **drop-in alternative to the macOS Finder** for people who live
-in their files all day — developers, writers, designers, and anyone who has ever
-wished Finder did *more*. It keeps everything you like about Finder (column /
-list / icon views, Quick Look, tags, the sidebar) and adds the things you
-normally reach for three other apps to get.
+FinderFlowP is a customized, bloat-free fork of FinderFlow engineered specifically to bridge the gap between Windows / Linux file-management conventions and native macOS aesthetics.
 
-It's **one download, fully self-contained** — no Homebrew, no Node, no runtimes,
-no plugins. Everything runs locally on your Mac. There is **no telemetry, no
-account, and no network calls**.
+### ⌨️ Windows & KDE Dolphin Keyboard Conventions
 
-|  Browse, tag & search  |  Edit code — built in  |
-| :---: | :---: |
-| ![List view with color tags](docs/assets/shot-list.png) | ![Built-in code editor with minimap](docs/assets/shot-editor.png) |
-| Color tags, Spotlight search, sortable columns, copy-path | Tabs, syntax highlighting, command palette, Sublime-style minimap |
-|  Column view + preview  |  Icon view + color tags  |
-| ![Column view with preview pane](docs/assets/shot-columns.png) | ![Icon view filtered by the Red tag](docs/assets/shot-tags.png) |
-| Finder-style miller columns with a live preview & Get Info pane | Resizable icon grid; tap a tag to filter Mac-wide |
-|  Markdown — read mode  |  Markdown — edit mode  |
-| ![Markdown reader](docs/assets/shot-md-read.png) | ![Markdown editor](docs/assets/shot-md-edit.png) |
-| Rendered preview (no Obsidian needed) | Edit & save with ⌘S, auto-save on close |
-
-> 🌐 **[See the interactive showcase on the landing page →](https://gtarafdar.github.io/FinderFlow/#showcase)**
+| Shortcut | Action | Details |
+|---|---|---|
+| <kbd>Enter</kbd> | **Open / Enter Folder** | Opens documents in default apps; enters folders directly without <kbd>⌘O</kbd> / <kbd>⌘↓</kbd> |
+| <kbd>F2</kbd> | **Rename** | Instant inline rename on the selected item |
+| <kbd>Delete</kbd> | **Move to Trash** | Deletes selection to Trash without needing <kbd>⌘⌫</kbd> |
+| <kbd>Shift</kbd> + <kbd>Delete</kbd> | **Delete Permanently** | Permanent deletion with safety confirmation |
+| <kbd>Backspace</kbd> / <kbd>Alt</kbd> + <kbd>↑</kbd> | **Go to Parent Folder** | Navigates up when no search or rename field is focused |
+| <kbd>⌘</kbd> + <kbd>A</kbd> | **Toggle Select All** | First press selects all items; second press deselects all |
+| <kbd>Esc</kbd> | **Deselect / Cancel Cut** | Clears active selection or cancels clipboard cut state |
+| <kbd>Space</kbd> | **Quick Look** | Native macOS Quick Look preview |
 
 ---
 
-## Why you'll want it — things macOS Finder can't do
+### ✂️ Real Cut, Copy & Paste Engine
 
-These are the headline reasons people switch. **None of them ship in Finder.**
-
-- **📝 A real code editor, built in.** Double-click any text or code file and it
-  opens in a proper editor — tabs, syntax highlighting for dozens of languages, a
-  fuzzy **command palette (⌘⇧P)**, Sublime keybindings, and a **Sublime-style
-  minimap**. You don't need to install Sublime Text or VS Code just to make a
-  quick edit.
-- **📖 A Markdown reader *and* editor.** Open `.md` files into a clean rendered
-  view (great for AI-generated / README / notes files) — or flip to edit mode and
-  save with ⌘S. **No Obsidian or separate Markdown app required.**
-- **👀 Real preview for popular file types.** Built on the same Quick Look engine
-  Finder uses — images, PDFs, code, video, audio, docs — right inside the column
-  preview pane and with the Space bar.
-- **🖱️ UI-driven file operations.** Cut, copy, paste, **move**, duplicate,
-  rename, make alias, compress, extract — all from buttons and right-click menus,
-  with full **undo/redo**. No memorizing Terminal commands.
-- **🧑‍💻 One-click IDE & terminal launch.** Open the current folder in **Terminal,
-  VS Code, Cursor, Claude Code, or Codex** — buttons appear only for the tools you
-  actually have installed.
-- **🔎 Search that actually finds things.** This folder, this folder + subfolders,
-  or **Spotlight-powered across your whole Mac** — including extension search
-  (type `.pdf`) — without leaving the window.
-- **🔗 Copy a folder's path in one click.** A dedicated copy-path button with a
-  confirmation toast. (Try doing *that* quickly in Finder.)
-- **🗜️ Archive tools that just work.** Compress to `.zip`; extract
-  `.zip / .tar / .gz / .tgz / .bz2 / .xz` using macOS's built-in tools.
-
-> If you've ever opened Finder, then Sublime, then Obsidian, then Terminal just
-> to deal with one folder — FinderFlow is that whole stack in a single window.
+* **Windows-Style Visual Feedback**: Pressing <kbd>⌘X</kbd> gives cut items **45% visual translucency**. Pressing <kbd>Esc</kbd> cancels the cut state.
+* **Non-Blocking Background Transfer Engine**: Fast chunked file transfers across disks and volumes with symlink preservation, bundle integrity verification, and safe rollback on error.
+* **Live Transfer Progress Panel**: Floating HUD showing active byte progress, real-time transfer speed (MB/s), estimated time remaining (ETA), progress bar, and one-click Cancel.
 
 ---
 
-## Everything it does
+### 🖱️ Zero-Latency Mouse Router & Selection
 
-<details open>
-<summary><b>Browsing & navigation</b></summary>
-
-- **Three views** — **Column** (Finder-style miller columns with a live preview
-  pane + optional ancestor "tree" mode), **List** (sortable by Name, Date
-  Modified, Date Created, Size, Kind, Extension, with optional *Group by Date*),
-  and **Icon** (resizable 32–128 pt grid).
-- **Sidebar** — system locations, your **pinned** folders, **recent** folders,
-  and a **Tags** section.
-- **Path bar** — clickable breadcrumbs, double-click to type a path, one-click
-  **Copy Path**.
-- **Status bar** — item count, selection size, free disk space.
-- **Quick Look** (Space) + a built-in preview panel.
-</details>
-
-<details>
-<summary><b>Finder-compatible color tags</b></summary>
-
-- Add/remove the 7 standard macOS colors from any view's right-click **Tags**
-  menu — toggles exactly like Finder, multiple colors per file preserved.
-- Written in macOS's real tag format, so they **also show up in Finder**.
-- Tag dots render in list / icon / column / preview; tapping a tag in the sidebar
-  filters **Mac-wide** via Spotlight.
-</details>
-
-<details>
-<summary><b>File operations (with Undo/Redo)</b></summary>
-
-- Copy / Cut / Paste, Duplicate, inline Rename, Make Alias (symlink).
-- Move to Trash and **Delete Permanently** (confirmed).
-- **Compress** to `.zip`; **Extract** common archive formats.
-- Share / AirDrop, Show in Finder, Get Info, Copy Path.
-- Multi-select aware; partial-failure-safe paste/move with correct undo.
-</details>
-
-<details>
-<summary><b>Built-in code editor (bundled & offline)</b></summary>
-
-- Double-click a text/code file to edit it in FinderFlow.
-- Syntax highlighting for dozens of languages; **multiple files as tabs**.
-- **Fuzzy command palette (⌘⇧P)**, settings menu, Sublime keybindings.
-- **Sublime-style minimap** (theme-aware, click/drag to scroll).
-- Runs in a **real, standalone macOS window** — drag, minimize, resize, fit —
-  and never blocks the main browser window.
-</details>
-
-<details>
-<summary><b>Markdown reader / editor</b></summary>
-
-- Rendered preview (GitHub/Obsidian-style, dark + light) with internal `.md`
-  link navigation, plus an **Edit** mode with ⌘S save and auto-save on close.
-</details>
-
-<details>
-<summary><b>Search</b></summary>
-
-- Scopes: This Folder, This Folder & Subfolders, Desktop, Documents, Downloads,
-  Home, and **Entire Mac** (Spotlight).
-- Name and **extension** search; live count; runs in the background.
-</details>
-
-<details>
-<summary><b>System integration</b></summary>
-
-- **Finder Sync extension** — right-click in Finder: New Folder Here, Copy Path,
-  Open in Terminal, **Open in FinderFlow**.
-- **Set FinderFlow as your default folder handler** (Settings) — routes folder
-  opens to FinderFlow via LaunchServices.
-- `finderflow://` URL scheme + "Open With" for folders & text files.
-- **Launch at Login** toggle, in-app toast notifications.
-</details>
+* **0ms Instant Selection**: Mouse-down immediately highlights items without waiting for double-click disambiguation windows.
+* **Right-Click Pre-Selection**: Right-clicking an item selects it *before* the context menu appears, guaranteeing the menu actions always match the highlighted item.
+* **Middle-Click to Open**: Middle-clicking any file or folder directly opens it.
+* **Empty Space Click to Deselect**: Clicking any blank area immediately clears selection.
+* **Control Protection**: Interactive widgets (zoom buttons, slider, scrollers) are fully shielded against click-through or unintended selection changes.
 
 ---
 
-## Security & privacy
+### 📋 AppKit Details List View (Table)
 
-FinderFlow touches your files, so it's built to earn that trust — and it was put
-through a **senior-QA and security pass** before release.
-
-- **100% local. No network, no telemetry, no accounts.** FinderFlow makes no
-  outbound connections of its own. Nothing about your files ever leaves your Mac.
-- **Security-reviewed.** An **AppleScript-injection** path (via crafted
-  filenames in *Get Info* / *Open in Terminal*) was found and fixed with strict
-  string-literal escaping, and the same hardening was applied to the Finder
-  extension. The shell/AppleScript bridges were audited end-to-end.
-- **Bug-hardened.** The QA pass also fixed a dead keyboard command, unsaved
-  Markdown data-loss on close, and made partial paste/move failures undo-safe —
-  so you don't lose work.
-- **Sandboxed where it matters.** The Finder extension runs **sandboxed**; the
-  main app is not sandboxed because a file manager needs full file-system access
-  (the same reason Finder isn't). It only uses the access *you* grant via standard
-  macOS prompts.
-- **Open source.** Read every line. MIT licensed.
-
-## Light on RAM — a file manager, not a memory hog
-
-A file manager should disappear into the background, not sit in Activity Monitor
-eating your RAM:
-
-- **≈ 55–60 MB idle** while browsing — measured, not guessed.
-- File-type icons are **cached, not duplicated**, so big folders stay lean.
-- The code editor and Markdown preview use embedded web tech (WebKit) **only
-  while open**, and that memory is **released the moment you close the window**.
-- Event-driven — it isn't polling the disk or burning CPU in the background.
+* **Native `NSTableView` Architecture**: Custom high-performance `DetailsTableView` implementation.
+* **Reorder & Resize Columns**: Drag column headers to reorder; drag dividers to resize with live width persistence.
+* **Smart Extension-Based Column Groups**: Right-click table headers to enable or disable columns grouped by relevance:
+  * **General**: Name, Date Modified, Date Created, Size, Kind, Extension, Permissions, Path
+  * **Images & Documents**: Dimensions, Page Count
+  * **Audio & Video**: Duration, Title, Artist, Album
+  * **Applications**: App Version
+* **Stable Layouts with Per-Folder Overrides**: Global default column layout remains stable across folders, with optional persistent overrides per folder.
 
 ---
 
-## Requirements
+### 🖼️ High-Performance Icon Grid View
 
-| **macOS**    | 14.0 Sonoma or later                       |
-| ------------ | ------------------------------------------ |
-| **Chip**     | Apple Silicon or Intel (universal binary)  |
-| **Download** | ≈ 6.8 MB · `.dmg`                          |
-| **Extras**   | None — fully self-contained                |
-| **Price**    | Free & open source (MIT)                   |
+* **Instant Virtualization**: Virtualized `LazyVGrid` rendering only visible icons for thousands of files.
+* **Smooth Trackpad & Wheel Zooming**: Hold <kbd>⌃ Control</kbd> and scroll or pinch to zoom between 32pt and 160pt. Built with a continuous delta accumulator and debounced background persistence for 60/120 FPS responsiveness.
+* **Zoom Slider & Shortcuts**: Bottom zoom bar with <kbd>−</kbd>, slider, and <kbd>+</kbd> buttons, plus <kbd>⌘+</kbd> and <kbd>⌘−</kbd> shortcuts.
 
-## Install
+---
 
-1. Download the latest **`FinderFlow` disk image** from
-   [**Releases**](../../releases/latest) and open it.
-2. Drag **FinderFlow** into **Applications**.
-3. **First launch (one-time Gatekeeper step).** FinderFlow is free and isn't
-   signed with a paid Apple Developer certificate, so macOS asks once — this is
-   expected and safe:
-   - Try to open it (it may be blocked), then go to **System Settings → Privacy &
-     Security**, scroll to *"FinderFlow was blocked"* and click **Open Anyway**.
-   - **Or** double-click **Fix Gatekeeper.command** in the DMG (after the app is
-     in Applications).
-   - **Or** run once in Terminal:
-     ```sh
-     xattr -dr com.apple.quarantine /Applications/FinderFlow.app
-     ```
-4. *(Optional)* Enable the Finder right-click menu under **System Settings →
-   General → Login Items & Extensions → Extensions → FinderFlow**.
+### ⚡ Zero-Delay View Switcher & Theme Vibrancy
 
-The first time you browse Desktop/Documents/Downloads (or use Get Info / Open in
-Terminal), macOS shows its **standard permission prompts** — just click **Allow**.
-These are normal for any file manager.
+* **0.00s Instant Switching**: Persistent dual-view container retains both List and Icon views in memory. Switching via the toolbar segmented control takes literally 0 seconds with zero lag.
+* **Unified macOS Wallpaper Tinting**: Both List and Icon views naturally inherit macOS window vibrancy and desktop wallpaper tinting, in both Light and Dark modes.
 
-## Build from source
+---
 
-Requires Xcode 16 / Swift 5.9+.
+### 🛠️ Terminal, Editor & Archiving Integrations
 
-```sh
-git clone https://github.com/Gtarafdar/FinderFlow.git
-cd FinderFlow
-open FinderFlow.xcodeproj      # build & run (⌘R)
+* **Dynamic Tool Detection**: Automatically detects installed terminals (`kitty`, `iTerm2`, `Terminal`, `Ghostty`, `Warp`) and editors (`VS Code`, `Cursor`, `Sublime Text`).
+* **Kitty Terminal First-Class Support**: Spawns kitty instances seamlessly via `--single-instance=no`.
+* **Advanced Compression Dialog**: Supports system `.zip` / `.tar` alongside external archivers (**Keka**, **7-Zip**, **BetterZip**) with format, level, and destination controls.
+* **"Open With" Menu**: In-memory cached LaunchServices queries for instant menu popups, custom application picker, and per-extension defaults.
+
+---
+
+### 📝 Built-in Code Editor & Markdown Viewer
+
+* **Integrated Code Editor**: Syntax highlighting for dozens of languages, multi-tab interface, fuzzy command palette (<kbd>⌘⇧P</kbd>), and Sublime-style minimap.
+* **Rendered Markdown Viewer**: Clean GitHub/Obsidian-style reader with live preview, internal `.md` link navigation, and an editable mode with <kbd>⌘S</kbd> auto-save.
+
+---
+
+## Privacy & System Footprint
+
+* **100% Offline & Local**: No analytics, no telemetry, no tracking, no network calls.
+* **No Auto-Updaters**: Sparkle updater removed; self-hosted and cleanly reproducible.
+* **Minimal Memory Usage**: Lightweight native footprint (~50-60 MB idle).
+
+---
+
+## Installation & Build
+
+### Requirements
+
+* macOS 13.0 (Ventura) or later (macOS 14+ recommended)
+* Apple Silicon (M1/M2/M3/M4) or Intel Mac
+
+### Build from Source
+
+Clone the repository and build using the bundled build script:
+
+```bash
+git clone https://github.com/beyond-1234/FinderFlowP.git
+cd FinderFlowP
+
+# Build, assemble DMG / bundle, sign, and install to /Applications/FinderFlowP.app:
+./build_app.sh
 ```
 
-Produce a distributable Universal DMG:
+Or open in Xcode:
 
-```sh
-./release.sh                    # → build/FinderFlow-<version>.dmg
+```bash
+open FinderFlow.xcodeproj
 ```
 
-## Landing page (GitHub Pages)
+### First Launch (Gatekeeper)
 
-A full landing page lives in [`docs/`](docs/) and is published with GitHub Pages:
+If macOS blocks the newly compiled app on first run, remove the quarantine attribute:
 
-**<https://gtarafdar.github.io/FinderFlow/>**
-
-It serves from the `main` branch `/docs` folder (Settings → Pages → Deploy from a
-branch → `main` → `/docs`).
-
-> Full capability list & development history: **[CHANGELOG.md](CHANGELOG.md)**.
+```bash
+xattr -dr com.apple.quarantine /Applications/FinderFlowP.app
+```
 
 ---
-
-## About the maker
-
-<img src="docs/assets/maker.png" alt="Gobinda Tarafdar" width="120" align="left" hspace="20" />
-
-**Gobinda Tarafdar** — WordPress product marketer by trade, stubborn
-problem-solver by habit, lifelong Harry Potter devotee by heart.
-
-By day I'm the Product Marketing Specialist at **WPBakery** — the page builder
-that quietly powers a sizeable corner of the WordPress universe. Before that, I
-helped a single plugin cross **400,000+ active users** through positioning, user
-research, and a relentless focus on what actually moves the needle. When the
-day-job owl flies home, I tinker on my own little workshop of spells — FinderFlow
-is one of them.
-
-<br clear="left" />
-
-**Also from the workshop:**
-
-- **[WPBakery](https://wpbakery.com/)** — the page builder I do product marketing for.
-- **[Docscriber](https://thedocscriber.com/)** — documentation, conjured.
-- **[TheRecaller](https://therecaller.com/)** — a memory charm for what you forget online.
-- **[TheEditra](https://theeditra.com/)** — a video-editing cauldron of my own brewing.
-- **[The Quill Press](https://thequillpress.com/)** — tech news styled after the Daily Prophet.
-- **[Costlas](https://costlas.com/)** — cost-of-living for 140 countries & 1,377 cities.
-
-## Support this project
-
-If FinderFlow saves you a few trips to Finder, here's how to help — all optional,
-all appreciated:
-
-- ⭐ **[Star it on GitHub](../../stargazers)** — helps others find it.
-- ❤️ **[Donate](https://gtarafdar.com/donate)** — keeps the workshop lit.
-- 🐦 **[Follow on X / Twitter](https://x.com/Gtarafdarr)**
-- 💼 **[Connect on LinkedIn](https://www.linkedin.com/in/gobinda-tarafdar/)**
-
-## Notes on distribution
-
-This app is **ad-hoc signed and not notarized** (no paid Apple Developer
-account), which is why the one-time Gatekeeper step is needed. To ship it without
-that prompt, sign with a Developer ID certificate and notarize.
-
-## Security & updates
-
-In-app updates are optional and can be turned off in **Settings → Updates**.
-
-**Where updates come from**
-
-- Sparkle reads a stable appcast at
-  [gtarafdar.github.io/FinderFlow/appcast.xml](https://gtarafdar.github.io/FinderFlow/appcast.xml).
-- Each update’s download URL points at a [GitHub Release](https://github.com/Gtarafdar/FinderFlow/releases).
-
-**What is verified**
-
-- Every update is signed with an EdDSA key that stays on the maintainer’s Mac.
-  Only the public key is in the app. Sparkle refuses a download whose signature
-  does not match, including one published from a compromised GitHub account.
-- The app does not strip the quarantine flag while installing an update.
-
-**If you are on 1.5.2 or earlier**
-
-- Download the latest release once from GitHub Releases and replace the app yourself.
-  Update Now in those builds does not install a signed update. After that, Check for Updates works.
-
-**First launch**
-
-- The DMG’s `Fix Gatekeeper.command` only runs
-  `xattr -dr com.apple.quarantine /Applications/FinderFlow.app` and opens the app.
-  It does not use the network or request admin rights. That is a one-time step
-  because the app is ad-hoc signed, not an updater.
-
-**What we don’t verify yet**
-
-- Apple Developer ID signatures or notarization (requires a paid Apple account).
 
 ## License
 
-MIT © Gobinda Tarafdar. See [LICENSE](LICENSE).
-
----
-
-*FinderFlow is an independent project and is not affiliated with Apple. Finder is
-a trademark of Apple Inc.*
+MIT License © 2026. Forked and enhanced from [FinderFlow](https://github.com/Gtarafdar/FinderFlow) by Gobinda Tarafdar.
+See [LICENSE](LICENSE) for details.
