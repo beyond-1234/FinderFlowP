@@ -27,7 +27,6 @@ struct ListView: View {
     @FocusState private var renameActive: Bool
     @State private var keyMonitor: Any?
     @State private var mouseMonitor: Any?
-    @State private var hoveredItemID: String?
 
     var body: some View {
         if groupBy != .none {
@@ -165,13 +164,6 @@ struct ListView: View {
         }
         .opacity(fileOps.isCut && fileOps.clipboardURLs.contains(item.url) ? 0.45 : 1.0)
         .contentShape(Rectangle())
-        .onHover { isHovered in
-            if isHovered {
-                hoveredItemID = item.id
-            } else if hoveredItemID == item.id {
-                hoveredItemID = nil
-            }
-        }
     }
 
     private func syncSortOrder() {
@@ -236,26 +228,76 @@ struct ListView: View {
 
     private func attachMouseMonitor() {
         guard mouseMonitor == nil else { return }
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .otherMouseDown]) { event in
-            if event.type == .otherMouseDown {
-                // Middle click (button 2) opens hovered item
-                if event.buttonNumber == 2 {
-                    if let targetID = hoveredItemID, let item = files.first(where: { $0.id == targetID }) {
-                        selectedIDs = [targetID]
-                        onNavigate(item)
-                        return nil
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { event in
+            // When editing text (renaming or search), let normal flow through
+            if let responder = NSApp.keyWindow?.firstResponder,
+               responder is NSTextField || responder is NSTextView {
+                return event
+            }
+
+            guard let window = event.window ?? NSApp.keyWindow,
+                  let hitView = window.contentView?.hitTest(event.locationInWindow) else {
+                return event
+            }
+
+            // Ascend from the clicked view to find its enclosing NSTableView
+            var currentView: NSView? = hitView
+            var targetTable: NSTableView? = nil
+            while let v = currentView {
+                if let tv = v as? NSTableView {
+                    targetTable = tv
+                    break
+                }
+                currentView = v.superview
+            }
+
+            guard let tableView = targetTable else {
+                return event
+            }
+
+            let point = tableView.convert(event.locationInWindow, from: nil)
+            let row = tableView.row(at: point)
+
+            if event.type == .rightMouseDown {
+                // 1. Right click on a file row -> instantly highlight in UI
+                if row >= 0 && row < files.count {
+                    let clickedItem = files[row]
+                    if !selectedIDs.contains(clickedItem.id) {
+                        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                        DispatchQueue.main.async {
+                            self.selectedIDs = [clickedItem.id]
+                        }
                     }
                 }
+                return event
+            } else if event.type == .otherMouseDown && event.buttonNumber == 2 {
+                // 2. Middle click -> highlight and open target file/folder directly
+                if row >= 0 && row < files.count {
+                    let clickedItem = files[row]
+                    tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+                    DispatchQueue.main.async {
+                        self.selectedIDs = [clickedItem.id]
+                        self.onNavigate(clickedItem)
+                    }
+                    return nil
+                }
             } else if event.type == .leftMouseDown {
-                // Deselect when clicking on empty space in NSTableView (row == -1)
-                if let window = NSApp.keyWindow,
-                   let tableView = findTableView(in: window.contentView) {
-                    let point = tableView.convert(event.locationInWindow, from: nil)
-                    let row = tableView.row(at: point)
-                    if row == -1 && !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
-                        if !selectedIDs.isEmpty {
+                // 3. Left click on empty space (row == -1) -> deselect
+                if row == -1 {
+                    if !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
+                        tableView.deselectAll(nil)
+                        DispatchQueue.main.async {
+                            self.selectedIDs.removeAll()
+                        }
+                    }
+                } else if row >= 0 && row < files.count {
+                    // Left click on valid row -> give instant UI selection feedback without waiting for drag timeout
+                    if !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
+                        let clickedID = files[row].id
+                        if !selectedIDs.contains(clickedID) || selectedIDs.count > 1 {
+                            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
                             DispatchQueue.main.async {
-                                self.selectedIDs.removeAll()
+                                self.selectedIDs = [clickedID]
                             }
                         }
                     }
@@ -270,15 +312,6 @@ struct ListView: View {
             NSEvent.removeMonitor(monitor)
             mouseMonitor = nil
         }
-    }
-
-    private func findTableView(in view: NSView?) -> NSTableView? {
-        guard let view = view else { return nil }
-        if let tv = view as? NSTableView { return tv }
-        for sub in view.subviews {
-            if let found = findTableView(in: sub) { return found }
-        }
-        return nil
     }
 
     // MARK: - Inline rename helpers

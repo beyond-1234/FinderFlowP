@@ -564,11 +564,6 @@ struct ContentView: View {
             case 4: // 鼠标侧键前进
                 goForward()
                 return nil
-            case 2: // 滚轮中键
-                if let folder = selectedFolderURL {
-                    NSWorkspace.shared.open(folder)
-                    return nil
-                }
             default:
                 break
             }
