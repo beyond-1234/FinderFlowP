@@ -30,15 +30,23 @@ enum IntegrationLauncher {
     // MARK: Terminals
 
     private static func openTerminal(folder: URL, resolved: ResolvedIntegration) {
-        // CLI terminals that accept their own start directory: kitty, Alacritty,
-        // WezTerm. Launch them through LaunchServices so the app behaves as if started
-        // from Finder, with the directory passed as an argument.
+        // CLI terminals that take a start directory (kitty, Alacritty, WezTerm).
+        //
+        // `--directory <path>` alone is unreliable on macOS: kitty's own window may
+        // start in the launching process's directory, and a running instance can
+        // absorb the request. Launching the shell through an explicit `cd` is what
+        // actually lands the session in the folder, and `--single-instance=no`
+        // guarantees a new OS window instead of a tab in an existing one.
         let args = resolved.integration.cliArgs
         if !args.isEmpty, resolved.cliPath != nil {
-            let bundleID = resolved.appURL.flatMap(bundleIdentifier)
-            launchAppWithArguments(bundleID: bundleID,
+            let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+            let launchArgs = ["--single-instance=no", args[0], folder.path,
+                              "/bin/sh", "-c",
+                              "cd \(shellQuoted(folder.path)) && exec \(shellQuoted(shell)) -l"]
+
+            launchAppWithArguments(bundleID: resolved.appURL.flatMap(bundleIdentifier),
                                    appURL: resolved.appURL,
-                                   arguments: args + [folder.path])
+                                   arguments: launchArgs)
             return
         }
 

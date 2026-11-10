@@ -264,9 +264,25 @@ struct DetailsTableView: NSViewRepresentable {
             if identityChanged {
                 tableView?.reloadData()
                 applySelection(preservingSelection)
+            } else {
+                // The row list is unchanged, but the *selection* may not be: ⌘A, Escape,
+                // keyboard navigation and undo all change selectedIDs without touching
+                // the file list. Pushing it here is what keeps the blue highlight in
+                // step with the status bar. Guarded so a selection made inside the table
+                // (which already updated the rows) is not fought over.
+                syncSelectionIfNeeded(preservingSelection)
             }
+
             tableView?.reloadData(forRowIndexes: IndexSet(integersIn: 0..<max(files.count, 0)),
                                   columnIndexes: IndexSet(integersIn: 0..<visibleColumns.count))
+        }
+
+        /// Apply `ids` to the table only when the table disagrees with it.
+        private func syncSelectionIfNeeded(_ ids: Set<String>) {
+            guard let tableView else { return }
+            let desired = IndexSet(files.enumerated().compactMap { ids.contains($1.id) ? $0 : nil })
+            guard tableView.selectedRowIndexes != desired else { return }
+            applySelection(ids)
         }
 
         private func sameIdentity(_ newFiles: [FileItem]) -> Bool {
