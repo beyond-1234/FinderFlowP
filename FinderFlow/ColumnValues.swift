@@ -14,6 +14,7 @@ final class ColumnValueLoader {
     static let shared = ColumnValueLoader()
 
     private var cache: [String: ExtraMetadata] = [:]
+    private let cacheLock = NSLock()
     private let queue = DispatchQueue(label: "FinderFlowP.column.metadata",
                                       qos: .userInitiated,
                                       attributes: .concurrent)
@@ -29,7 +30,7 @@ final class ColumnValueLoader {
     }
 
     func cached(for url: URL) -> ExtraMetadata? {
-        cache[url.path]
+        cacheLock.withLock { cache[url.path] }
     }
 
     /// Load metadata off the main thread, then call back on the main queue.
@@ -38,23 +39,25 @@ final class ColumnValueLoader {
               completion: @escaping () -> Void) {
         guard !kinds.isEmpty else { return }
 
-        queue.async {
+        // A Task so the async AVFoundation accessors can be awaited. The work still
+        // happens off the main actor, which is all the columns need.
+        Task.detached(priority: .userInitiated) {
             var changed = false
             for file in files where !file.isBrowsableFolder {
-                if self.cache[file.url.path] != nil { continue }
-                let meta = self.probe(file: file, kinds: kinds)
+                if self.cacheLock.withLock({ self.cache[file.url.path] != nil }) { continue }
+                let meta = await self.probe(file: file, kinds: kinds)
                 if meta.hasAnyValue {
-                    self.cache[file.url.path] = meta
+                    self.cacheLock.withLock { self.cache[file.url.path] = meta }
                     changed = true
                 }
             }
             guard changed else { return }
-            DispatchQueue.main.async(execute: completion)
+            await MainActor.run { completion() }
         }
     }
 
     func value(for kind: ColumnKind, item: FileItem) -> String? {
-        guard let meta = cache[item.url.path] else { return nil }
+        guard let meta = cacheLock.withLock({ cache[item.url.path] }) else { return nil }
         switch kind {
         case .dimensions: return meta.dimensions
         case .duration:   return meta.duration
@@ -68,17 +71,17 @@ final class ColumnValueLoader {
     }
 
     func clear() {
-        cache.removeAll()
+        cacheLock.withLock { cache.removeAll() }
     }
 
     // MARK: Probing
 
-    private func probe(file: FileItem, kinds: Set<ColumnKind>) -> ExtraMetadata {
+    private func probe(file: FileItem, kinds: Set<ColumnKind>) async -> ExtraMetadata {
         var meta = ExtraMetadata()
 
         if kinds.contains(.dimensions) || kinds.contains(.duration) {
             if file.isMediaKind {
-                if let probe = probeMedia(file.url) {
+                if let probe = await probeMedia(file.url) {
                     meta.dimensions = probe.dimensions
                     meta.duration = probe.duration
                 }
@@ -91,7 +94,7 @@ final class ColumnValueLoader {
             meta.version = probeVersion(file.url)
         }
         if kinds.contains(.title) || kinds.contains(.artist) || kinds.contains(.album) {
-            let tags = probeAudioTags(file.url)
+            let tags = await probeAudioTags(file.url)
             meta.title = tags.title
             meta.artist = tags.artist
             meta.album = tags.album
@@ -99,19 +102,26 @@ final class ColumnValueLoader {
         return meta
     }
 
-    private func probeMedia(_ url: URL) -> (dimensions: String?, duration: String?)? {
+    /// Probing awaits AVFoundation's async accessors, which replaced the synchronous
+    /// (and now deprecated) ones in macOS 13. It runs inside the detached Task that
+    /// `load(_:kinds:completion:)` starts, so it is never on the main actor.
+    private func probeMedia(_ url: URL) async -> (dimensions: String?, duration: String?)? {
         let asset = AVURLAsset(url: url)
         var dimensions: String?
         var duration: String?
 
-        if let track = asset.tracks(withMediaType: .video).first {
-            let size = track.naturalSize.applying(track.preferredTransform)
-            let width = abs(Int(size.width.rounded()))
-            let height = abs(Int(size.height.rounded()))
-            if width > 0, height > 0 {
-                dimensions = fileExtensionIsImage(url)
-                    ? "\(width) × \(height)"
-                    : "\(width) × \(height)"
+        if let track = try? await asset.loadTracks(withMediaType: .video).first {
+            // naturalSize is in the track's own orientation; applying the preferred
+            // transform gives the size as displayed, so portrait video is not reported
+            // sideways.
+            if let rawSize = try? await track.load(.naturalSize),
+               let transform = try? await track.load(.preferredTransform) {
+                let size = rawSize.applying(transform)
+                let width = abs(Int(size.width.rounded()))
+                let height = abs(Int(size.height.rounded()))
+                if width > 0, height > 0 {
+                    dimensions = "\(width) × \(height)"
+                }
             }
         }
         // Still images have no AV track; read the pixel size from ImageIO.
@@ -123,9 +133,11 @@ final class ColumnValueLoader {
             dimensions = "\(width) × \(height)"
         }
 
-        let seconds = CMTimeGetSeconds(asset.duration)
-        if seconds.isFinite, seconds > 0 {
-            duration = formatDuration(seconds)
+        if let cmDuration = try? await asset.load(.duration) {
+            let seconds = CMTimeGetSeconds(cmDuration)
+            if seconds.isFinite, seconds > 0 {
+                duration = formatDuration(seconds)
+            }
         }
         return (dimensions, duration)
     }
@@ -160,15 +172,17 @@ final class ColumnValueLoader {
     }
 
     /// Audio tags via AVAsset metadata (works for m4a/mp3/aiff without extra deps).
-    private func probeAudioTags(_ url: URL) -> (title: String?, artist: String?, album: String?) {
+    private func probeAudioTags(_ url: URL) async -> (title: String?, artist: String?, album: String?) {
         let asset = AVURLAsset(url: url)
         var title: String?
         var artist: String?
         var album: String?
 
-        for item in asset.commonMetadata {
+        let metadata = (try? await asset.load(.commonMetadata)) ?? []
+        for item in metadata {
             guard let key = item.commonKey?.rawValue,
-                  let value = item.stringValue, !value.isEmpty else { continue }
+                  let value = try? await item.load(.stringValue),
+                  !value.isEmpty else { continue }
             switch key {
             case "title":  title = value
             case "artist", "creator", "author": artist = value

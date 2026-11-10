@@ -45,7 +45,18 @@ final class OperationJob: ObservableObject, Identifiable {
     @Published private(set) var message: String?
 
     private var started = Date()
-    private(set) var isCancelled = false
+
+    /// Cancel is written from the main thread (the Cancel button) and polled from the
+    /// transfer queue on every 4 MB chunk. A bare Bool has no memory-ordering guarantee
+    /// across those, so guard it with a lock.
+    private let cancelLock = NSLock()
+    private var cancelledFlag = false
+
+    var isCancelled: Bool {
+        cancelLock.lock()
+        defer { cancelLock.unlock() }
+        return cancelledFlag
+    }
 
     init(title: String, detail: String) {
         self.title = title
@@ -124,7 +135,9 @@ final class OperationJob: ObservableObject, Identifiable {
     }
 
     func cancel() {
-        isCancelled = true
+        cancelLock.lock()
+        cancelledFlag = true
+        cancelLock.unlock()
         setMessage("Cancelling…")
     }
 }

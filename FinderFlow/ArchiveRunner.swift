@@ -166,13 +166,23 @@ enum ArchiveRunner {
         process.standardError = stderr
         process.standardOutput = Pipe()
 
+        // Drain stderr concurrently. A tool that writes more than the pipe buffer while
+        // nobody reads would otherwise block, and we only read it after exit.
+        var errData = Data()
+        let errHandle = stderr.fileHandleForReading
+        let errQueue = DispatchQueue(label: "FinderFlowP.archive.stderr")
+        errQueue.async { errData = errHandle.readDataToEndOfFile() }
+
         try process.run()
 
         var last: Int64 = 0
+        var terminatedAt: Date?
+
         while process.isRunning {
             Thread.sleep(forTimeInterval: 0.25)
             if job.isCancelled {
-                process.terminate()
+                process.terminate()          // SIGTERM
+                terminatedAt = Date()
                 break
             }
             if let size = fileSize(outputFile), size > last {
@@ -180,9 +190,17 @@ enum ArchiveRunner {
                 last = size
             }
         }
-        process.waitUntilExit()
 
-        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        // SIGTERM is a request, not a guarantee. Escalate to SIGKILL rather than
+        // blocking forever in waitUntilExit if the tool ignores it.
+        if let terminatedAt, process.isRunning,
+           Date().timeIntervalSince(terminatedAt) > 3 {
+            kill(process.processIdentifier, SIGKILL)
+        }
+
+        process.waitUntilExit()
+        errQueue.sync {}   // let the stderr reader finish
+
         let errorText = String(decoding: errData, as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
 

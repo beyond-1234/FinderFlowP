@@ -173,7 +173,7 @@ class FileOperationsService: ObservableObject {
             detail: destination.lastPathComponent
         )
         OperationProgressStore.shared.add(job)
-        job.setTotal(TransferEngine.totalSize(of: sources))
+        TransferSizing.measureInBackground(sources, for: job)
 
         isBusy = true
         lastActionFeedback = ActionFeedback(icon: "doc.on.clipboard",
@@ -408,12 +408,12 @@ class FileOperationsService: ObservableObject {
                   format: ArchiveFormat,
                   level: ArchiveLevel?,
                   reload: @escaping () -> Void) {
-        guard let first = urls.first else { return }
+        guard !urls.isEmpty else { return }
 
         let job = OperationJob(title: "Compressing " + describe(urls),
                                detail: destination.lastPathComponent)
         OperationProgressStore.shared.add(job)
-        job.setTotal(TransferEngine.totalSize(of: urls))
+        TransferSizing.measureInBackground(urls, for: job)
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -437,7 +437,6 @@ class FileOperationsService: ObservableObject {
                     self.errorMessage = error.localizedDescription
                 }
             }
-            _ = first
         }
     }
 
@@ -450,19 +449,24 @@ class FileOperationsService: ObservableObject {
             ? first.deletingPathExtension().lastPathComponent + ".zip"
             : "Archive.zip"
         let dest = uniqueURL(for: base.appendingPathComponent(zipName))
-        guard let arguments = zipArguments(archivePath: dest.path, names: names) else {
+        // Still validate the names through _ = arguments so a name that would break the
+        // zip command line is rejected before any work starts.
+        guard zipArguments(archivePath: dest.path, names: names) != nil else {
             errorMessage = "One of these items can't be compressed because its name isn't allowed."
             return
         }
         let job = OperationJob(title: "Compressing " + describe(urls),
                                detail: dest.lastPathComponent)
         OperationProgressStore.shared.add(job)
-        job.setTotal(TransferEngine.totalSize(of: urls))
+        TransferSizing.measureInBackground(urls, for: job)
         DispatchQueue.global(qos: .userInitiated).async {
             do {
-                try self.runTool("/usr/bin/zip", arguments,
-                                 currentDirectory: base,
-                                 progress: { job.advance($0) })
+                try ArchiveRunner.run(tool: ArchiveToolCatalog.all[0],
+                                      format: ArchiveToolCatalog.all[0].formats[0],
+                                      level: nil,
+                                      urls: urls,
+                                      destination: dest,
+                                      job: job)
                 DispatchQueue.main.async {
                     job.finish()
                     reload()
@@ -624,6 +628,10 @@ class FileOperationsService: ObservableObject {
 
     // MARK: Helpers
 
+    /// Names must be unique within the destination folder. This probes rather than
+    /// reserving, so two windows pasting the same file into the same folder at the same
+    /// moment can both pick the same name; the loser fails loudly instead of
+    /// overwriting. Acceptable for now — see the review notes.
     private func uniqueURL(for base: URL) -> URL {
         var url = base; var n = 2
         while FileManager.default.fileExists(atPath: url.path) {
@@ -773,7 +781,7 @@ class FileOperationsService: ObservableObject {
     private func runTool(_ launchPath: String,
                          _ arguments: [String],
                          currentDirectory: URL? = nil,
-                         progress: ((Int64) -> Void)? = nil) throws -> String {
+                         job: OperationJob? = nil) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
@@ -797,8 +805,31 @@ class FileOperationsService: ObservableObject {
             errData = stderr.fileHandleForReading.readDataToEndOfFile()
             group.leave()
         }
+
+        // Wait with cancellation support and a SIGKILL escalation, so a tool that
+        // ignores SIGTERM cannot wedge the transfer queue forever.
+        var cancelled = false
+        if let job {
+            var terminatedAt: Date?
+            while process.isRunning {
+                Thread.sleep(forTimeInterval: 0.2)
+                if job.isCancelled {
+                    cancelled = true
+                    process.terminate()
+                    terminatedAt = Date()
+                    break
+                }
+            }
+            if let terminatedAt, process.isRunning,
+               Date().timeIntervalSince(terminatedAt) > 3 {
+                kill(process.processIdentifier, SIGKILL)
+            }
+        }
+
         process.waitUntilExit()
         group.wait()
+
+        if cancelled { throw ArchiveToolError(message: "Cancelled") }
 
         let output = String(decoding: outData, as: UTF8.self)
         let errorText = String(decoding: errData, as: UTF8.self)
@@ -806,7 +837,6 @@ class FileOperationsService: ObservableObject {
         guard process.terminationStatus == 0 else {
             throw ArchiveToolError(message: errorText.isEmpty ? "Couldn't read this archive." : errorText)
         }
-        _ = progress
         return output
     }
 

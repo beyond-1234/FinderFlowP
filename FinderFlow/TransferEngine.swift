@@ -110,12 +110,34 @@ enum TransferEngine {
 
     private static func copyItem(_ source: URL, to target: URL, job: OperationJob) throws {
         let fm = FileManager.default
+
+        if job.isCancelled { throw TransferError.cancelled }
+
+        // Inspect the link itself, never the target. `fileExists(atPath:)` follows
+        // symlinks, which previously turned a link-to-directory into a full recursive
+        // copy, a link-to-file into a real duplicate, and a dangling link into a
+        // hard failure that aborted the whole transfer.
+        let values = try? source.resourceValues(forKeys: [.isSymbolicLinkKey, .isDirectoryKey])
+        if values?.isSymbolicLink == true {
+            try copySymbolicLink(source, to: target)
+            return
+        }
+
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: source.path, isDirectory: &isDir) else {
             throw TransferError.failed("source no longer exists", source)
         }
 
-        if job.isCancelled { throw TransferError.cancelled }
+        // A package (.app, .pages, .rtfd…) is a directory that the system presents as
+        // one item. Copying it file-by-file drops its code signature and other bundle
+        // metadata, so hand those to FileManager as a single unit.
+        let isPackage = (try? source.resourceValues(forKeys: [.isPackageKey]))?.isPackage ?? false
+        if isDir.boolValue, isPackage {
+            if fm.fileExists(atPath: target.path) { try? fm.removeItem(at: target) }
+            try fm.copyItem(at: source, to: target)
+            job.advance(0)
+            return
+        }
 
         if isDir.boolValue {
             try fm.createDirectory(at: target, withIntermediateDirectories: true)
@@ -132,6 +154,16 @@ enum TransferEngine {
         } else {
             try copyFile(source, to: target, job: job)
         }
+    }
+
+    /// Recreate a symlink verbatim: same destination string, same link semantics.
+    /// Copying the bytes it points at would silently change what the file system says.
+    private static func copySymbolicLink(_ source: URL, to target: URL) throws {
+        let fm = FileManager.default
+        if fm.fileExists(atPath: target.path) { try? fm.removeItem(at: target) }
+
+        let destination = try fm.destinationOfSymbolicLink(atPath: source.path)
+        try fm.createSymbolicLink(atPath: target.path, withDestinationPath: destination)
     }
 
     private static func copyFile(_ source: URL, to target: URL, job: OperationJob) throws {

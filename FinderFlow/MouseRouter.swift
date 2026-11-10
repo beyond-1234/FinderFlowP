@@ -18,7 +18,6 @@ import AppKit
 // publishes the same selection for SwiftUI to adopt.
 
 final class MouseRouter: ObservableObject {
-    static let shared = MouseRouter()
 
     /// Latest selection the router wants the browser to show.
     @Published var selectionIntent: Set<String>?
@@ -30,7 +29,6 @@ final class MouseRouter: ObservableObject {
     private var currentSelection: Set<String> = []
     private var lastAnchorID: String?
 
-    private init() {}
 
     func start() {
         guard monitor == nil else { return }
@@ -89,7 +87,8 @@ final class MouseRouter: ObservableObject {
             table.focusRingType = .none
         }
 
-        let hitID = ItemHitRegistry.shared.itemID(atWindowPoint: event.locationInWindow)
+        let hitID = ItemHitRegistry.shared.itemID(atWindowPoint: event.locationInWindow,
+                                                  in: event.window)
             ?? tableHit?.id
 
         switch event.type {

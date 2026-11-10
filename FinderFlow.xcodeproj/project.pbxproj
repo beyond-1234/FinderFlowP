@@ -61,6 +61,8 @@
 		FF1E000000000000000000DB /* TransferEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000077 /* TransferEngine.swift */; };
 		FF1E000000000000000000DC /* WindowOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E00000000000000000078 /* WindowOpener.swift */; };
 		FF1E0000000000000000000002 /* FileContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000000001 /* FileContextMenu.swift */; };
+		FF1E0000000000000000000004 /* TransferSizing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000000003 /* TransferSizing.swift */; };
+		FF1E0000000000000000000006 /* TransferEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E0000000000000000000005 /* TransferEngineTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -146,6 +148,8 @@
 		FF1E00000000000000000077 /* TransferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferEngine.swift; sourceTree = "<group>"; };
 		FF1E00000000000000000078 /* WindowOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowOpener.swift; sourceTree = "<group>"; };
 		FF1E0000000000000000000001 /* FileContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileContextMenu.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000000003 /* TransferSizing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferSizing.swift; sourceTree = "<group>"; };
+		FF1E0000000000000000000005 /* TransferEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferEngineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -247,6 +251,7 @@
 				FF1E00000000000000000077 /* TransferEngine.swift */,
 				FF1E00000000000000000078 /* WindowOpener.swift */,
 				FF1E0000000000000000000001 /* FileContextMenu.swift */,
+				FF1E0000000000000000000003 /* TransferSizing.swift */,
 				DDDDDDDDDDDDDDDDDDDD0001 /* AceEditor */,
 			);
 			path = FinderFlow;
@@ -274,6 +279,7 @@
 			isa = PBXGroup;
 			children = (
 				TTTTTTTTTTTTTTTTTTTT0002 /* ArchiveSecurityTests.swift */,
+				FF1E0000000000000000000005 /* TransferEngineTests.swift */,
 			);
 			path = FinderFlowTests;
 			sourceTree = "<group>";
@@ -431,6 +437,7 @@
 				FFFFFFFFFFFFFFFF000A /* MarkdownEditorController.swift in Sources */,
 				FFFFFFFFFFFFFFFF000C /* FirstRunSheet.swift in Sources */,
 				SSSSSSSSSSSSSSSSSSSS0002 /* ArchiveSecurity.swift in Sources */,
+				FF1E0000000000000000000004 /* TransferSizing.swift in Sources */,
 				FF1E0000000000000000000002 /* FileContextMenu.swift in Sources */,
 				FF1E000000000000000000C8 /* ArchiveDialogPresenter.swift in Sources */,
 				FF1E000000000000000000C9 /* ArchiveRunner.swift in Sources */,
@@ -461,6 +468,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				TTTTTTTTTTTTTTTTTTTT0003 /* ArchiveSecurityTests.swift in Sources */,
+				FF1E0000000000000000000006 /* TransferEngineTests.swift in Sources */,
 				SSSSSSSSSSSSSSSSSSSS0003 /* ArchiveSecurity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

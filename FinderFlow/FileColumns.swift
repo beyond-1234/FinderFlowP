@@ -271,7 +271,30 @@ final class ColumnConfigStore {
         }
     }
 
+    /// Column resizes fire this on every mouse-up, and each call would re-encode the
+    /// whole overrides dictionary (one entry per customised folder). Coalesce bursts
+    /// into a single write.
+    private var pendingPersist: DispatchWorkItem?
+
     private func persist() {
+        pendingPersist?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            if let data = try? JSONEncoder().encode(self.defaultConfig) {
+                UserDefaults.standard.set(data, forKey: self.defaultKey)
+            }
+            if let data = try? JSONEncoder().encode(self.overrides) {
+                UserDefaults.standard.set(data, forKey: self.overridesKey)
+            }
+        }
+        pendingPersist = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    /// Write immediately. Call when the window closes so a pending debounce is not lost.
+    func flush() {
+        pendingPersist?.cancel()
+        pendingPersist = nil
         if let data = try? JSONEncoder().encode(defaultConfig) {
             UserDefaults.standard.set(data, forKey: defaultKey)
         }

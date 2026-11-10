@@ -32,6 +32,10 @@ struct ContentView: View {
     @State private var showFirstRun = false
     @State private var folderWatcher = FolderChangeWatcher()
 
+    /// One router per window. Shared state would let a second window's file list
+    /// overwrite this one's order and selection, breaking Shift-click ranges.
+    @StateObject private var mouseRouter = MouseRouter()
+
     @Environment(\.ffOpenWindow) private var openWindowBox
 
     private var viewMode: ViewMode       { ViewMode.fromStorage(viewModeRaw) }
@@ -509,27 +513,27 @@ struct ContentView: View {
         browserContent
             .browserAreaMarker()
             .onAppear {
-                MouseRouter.shared.updateItems(displayFiles)
-                MouseRouter.shared.syncSelection(selectedIDs)
-                MouseRouter.shared.start()
+                mouseRouter.updateItems(displayFiles)
+                mouseRouter.syncSelection(selectedIDs)
+                mouseRouter.start()
             }
-            .onDisappear { MouseRouter.shared.stop() }
+            .onDisappear { mouseRouter.stop() }
             .onChange(of: displayFiles) { files in
-                MouseRouter.shared.updateItems(files)
+                mouseRouter.updateItems(files)
             }
             .onChange(of: selectedIDs) { ids in
-                MouseRouter.shared.syncSelection(ids)
+                mouseRouter.syncSelection(ids)
             }
-            .onReceive(MouseRouter.shared.$selectionIntent) { intent in
+            .onReceive(mouseRouter.$selectionIntent) { intent in
                 guard let intent else { return }
                 if selectedIDs != intent { selectedIDs = intent }
             }
-            .onReceive(MouseRouter.shared.$openIntent) { id in
+            .onReceive(mouseRouter.$openIntent) { id in
                 guard let id else { return }
                 if let item = displayFiles.first(where: { $0.id == id }) {
                     navigateItem(item)
                 }
-                MouseRouter.shared.openIntent = nil
+                mouseRouter.openIntent = nil
             }
     }
 

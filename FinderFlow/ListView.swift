@@ -120,8 +120,12 @@ struct ListView: View {
         }
         .onDisappear {
             removeKeyboardMonitor()
+            // A column resize may still be inside the debounce window.
+            ColumnConfigStore.shared.flush()
         }
         .onChange(of: currentPath) { _ in
+            // Persist any pending layout change before leaving this folder.
+            ColumnConfigStore.shared.flush()
             // Columns do NOT change per folder automatically — only the stored layout
             // for the folder we just entered is read back (usually the global default).
             refreshColumnsFromStore()

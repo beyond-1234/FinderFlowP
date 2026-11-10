@@ -110,13 +110,17 @@ final class ItemHitRegistry {
 
     /// Resolve which item sits under a window-space point.
     /// Picks the smallest matching frame so nested cells win over containers.
-    func itemID(atWindowPoint point: NSPoint) -> String? {
+    ///
+    /// `window` scopes the search: cells register from every open window, and without
+    /// this filter a point in one window could match a cell in another.
+    func itemID(atWindowPoint point: NSPoint, in window: NSWindow?) -> String? {
         var bestID: String?
         var bestArea = CGFloat.greatestFiniteMagnitude
 
         for (_, view) in entries {
             guard let id = view.itemID,
-                  view.window != nil,
+                  let viewWindow = view.window,
+                  window == nil || viewWindow === window,
                   !view.isHiddenOrHasHiddenAncestor else { continue }
             let localPoint = view.convert(point, from: nil)
             guard view.bounds.contains(localPoint) else { continue }
