@@ -16,7 +16,6 @@ import AppKit
 enum IntegrationKind: String, Codable, CaseIterable, Identifiable {
     case terminal
     case editor
-    case agent
 
     var id: String { rawValue }
 
@@ -24,7 +23,6 @@ enum IntegrationKind: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .terminal: return "Terminals"
         case .editor:   return "Code editors"
-        case .agent:    return "AI agents"
         }
     }
 }
@@ -39,7 +37,7 @@ struct Integration: Identifiable, Hashable {
     let bundleIDs: [String]
     /// Well-known app paths, in priority order.
     let appPaths: [String]
-    /// CLI name to look up on PATH (agents and terminals).
+    /// CLI name to look up on PATH (used by terminals).
     let cli: String?
     /// Extra args for the CLI when launching it inside a folder.
     let cliArgs: [String]
@@ -82,7 +80,7 @@ struct ResolvedIntegration: Identifiable {
 
 enum IntegrationCatalog {
 
-    static let all: [Integration] = terminals + editors + agents
+    static let all: [Integration] = terminals + editors
 
     static let terminals: [Integration] = [
         Integration(id: "terminal.apple", kind: .terminal, name: "Terminal",
@@ -143,28 +141,6 @@ enum IntegrationCatalog {
                     symbol: "b.square",
                     bundleIDs: ["com.barebones.bbedit"],
                     appPaths: ["/Applications/BBEdit.app"]),
-    ]
-
-    static let agents: [Integration] = [
-        Integration(id: "agent.claude", kind: .agent, name: "Claude Code",
-                    symbol: "brain.head.profile",
-                    bundleIDs: ["com.anthropic.claudefordesktop"],
-                    appPaths: ["/Applications/Claude.app"],
-                    cli: "claude", cliArgs: ["."]),
-        Integration(id: "agent.codex", kind: .agent, name: "Codex",
-                    symbol: "sparkles",
-                    bundleIDs: ["com.openai.codex"],
-                    appPaths: ["/Applications/Codex.app"],
-                    cli: "codex", cliArgs: []),
-        Integration(id: "agent.gemini", kind: .agent, name: "Gemini CLI",
-                    symbol: "diamond",
-                    cli: "gemini", cliArgs: []),
-        Integration(id: "agent.aider", kind: .agent, name: "Aider",
-                    symbol: "wand.and.stars",
-                    cli: "aider", cliArgs: []),
-        Integration(id: "agent.opencode", kind: .agent, name: "OpenCode",
-                    symbol: "circle.hexagongrid",
-                    cli: "opencode", cliArgs: []),
     ]
 }
 

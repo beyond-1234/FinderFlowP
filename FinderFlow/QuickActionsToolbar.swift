@@ -119,11 +119,6 @@ struct QuickActionsToolbar: View {
                     IntegrationLauncher.open(folder: openTarget, using: item)
                 }
             }
-            ForEach(integrations.items(of: .agent)) { item in
-                AppIconToolbarButton(appIcon: item.icon, label: "Run \(item.integration.name) here") {
-                    IntegrationLauncher.open(folder: openTarget, using: item)
-                }
-            }
         }
     }
 
@@ -136,7 +131,7 @@ struct QuickActionsToolbar: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 92)
-            .help("Switch view")
+            .fastTooltip("Switch view")
 
             ToolbarToggleButton(isOn: $showHidden,
                                 on: "eye",
@@ -159,7 +154,7 @@ struct QuickActionsToolbar: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help(groupBy == .none ? "Group By" : "Grouped by \(groupBy.menuTitle)")
+            .fastTooltip(groupBy == .none ? "Group By" : "Grouped by \(groupBy.menuTitle)")
 
             ToolbarToggleButton(isOn: $showPreview,
                                 on: "sidebar.trailing",
@@ -182,7 +177,7 @@ struct QuickActionsToolbar: View {
             }
             .pickerStyle(.menu)
             .frame(width: 118)
-            .help("Sort by")
+            .fastTooltip("Sort by")
 
             ToolbarActionButton(icon: sortAscending ? "arrow.up" : "arrow.down",
                                 label: sortAscending ? "Ascending" : "Descending") {
@@ -205,7 +200,7 @@ struct QuickActionsToolbar: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Folder / file order: \(folderOrder.rawValue)")
+            .fastTooltip("Order: \(folderOrder.rawValue)")
         }
     }
 }
@@ -225,7 +220,7 @@ struct ToolbarActionButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .help(label)
+        .fastTooltip(label)
     }
 }
 
@@ -246,7 +241,7 @@ struct ToolbarToggleButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .help(help)
+        .fastTooltip(help)
     }
 }
 
@@ -265,6 +260,6 @@ struct AppIconToolbarButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.borderless)
-        .help(label)
+        .fastTooltip(label)
     }
 }

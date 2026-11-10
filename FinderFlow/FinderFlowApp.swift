@@ -31,6 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        TooltipTiming.applyFastTooltips()
         UserPreferences.migrateBrowseDefaultsIfNeeded()
         _ = UpdateManager.shared
         // Sync stored toggle with actual SMAppService registration state

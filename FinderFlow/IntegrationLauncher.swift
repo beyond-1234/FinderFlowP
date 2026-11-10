@@ -13,11 +13,8 @@ enum IntegrationLauncher {
     /// - CLI-capable terminals (kitty, alacritty, wezterm) get their native
     ///   "start in directory" flag.
     /// - Scriptable terminals (Terminal, iTerm2) get a `cd` command.
-    /// - Agents run in the configured terminal inside the folder.
     static func open(folder: URL, using resolved: ResolvedIntegration) {
-        let integration = resolved.integration
-
-        switch integration.kind {
+        switch resolved.integration.kind {
         case .editor:
             if let app = resolved.appURL {
                 NSWorkspace.shared.open([folder],
@@ -27,9 +24,6 @@ enum IntegrationLauncher {
 
         case .terminal:
             openTerminal(folder: folder, resolved: resolved)
-
-        case .agent:
-            runAgent(folder: folder, resolved: resolved)
         }
     }
 
@@ -95,92 +89,6 @@ enum IntegrationLauncher {
         }
     }
 
-    // MARK: Agents
-
-    private static func runAgent(folder: URL, resolved: ResolvedIntegration) {
-        guard let cli = resolved.cliPath else {
-            // Desktop-only agent app: just open it at the folder.
-            if let app = resolved.appURL {
-                NSWorkspace.shared.open([folder],
-                                        withApplicationAt: app,
-                                        configuration: NSWorkspace.OpenConfiguration())
-            }
-            return
-        }
-
-        let args = resolved.integration.cliArgs.joined(separator: " ")
-        let command = "cd \(shellQuoted(folder.path)) && \(shellQuoted(cli))"
-            + (args.isEmpty ? "" : " \(args)")
-
-        // Prefer a scriptable terminal so the command actually runs.
-        if runCommandInScriptableTerminal(command) { return }
-
-        // Otherwise launch the terminal in the folder and tell the user what to run.
-        if let terminal = IntegrationStore.shared.items(of: .terminal).first {
-            openTerminal(folder: folder, resolved: terminal)
-        }
-        NotificationCenter.default.post(
-            name: .ffAgentCommandHint,
-            object: nil,
-            userInfo: ["command": command, "agent": resolved.integration.name]
-        )
-    }
-
-    /// Returns true when a scriptable terminal accepted the command.
-    @discardableResult
-    private static func runCommandInScriptableTerminal(_ command: String) -> Bool {
-        let preferred = UserDefaults.standard.string(forKey: "winfilesAgentTerminalID")
-
-        // Only Terminal.app and iTerm2 can take a command via AppleScript.
-        let candidates = ["terminal.apple", "terminal.iterm"]
-        var ordered: [String] = []
-        if let preferred, candidates.contains(preferred), let first = Optional(preferred) {
-            ordered.append(first)
-        }
-        for id in candidates where !ordered.contains(id) {
-            ordered.append(id)
-        }
-
-        for id in ordered {
-            guard let terminal = IntegrationStore.shared.item(id: id) else { continue }
-            guard let bundleID = terminal.appURL.flatMap(bundleIdentifier) else { continue }
-
-            if bundleID == "com.apple.Terminal" {
-                runAppleScript("""
-                tell application "Terminal"
-                    activate
-                    do script \(appleScriptLiteral(command))
-                end tell
-                """)
-                return true
-            }
-            if bundleID == "com.googlecode.iterm2" {
-                runAppleScript("""
-                tell application "iTerm"
-                    activate
-                    if (count of windows) is 0 then
-                        set w to create window with default profile
-                        tell w
-                            tell current session
-                                write text \(appleScriptLiteral(command))
-                            end tell
-                        end tell
-                    else
-                        tell current window
-                            create tab with default profile
-                            tell current session
-                                write text \(appleScriptLiteral(command))
-                            end tell
-                        end tell
-                    end if
-                end tell
-                """)
-                return true
-            }
-        }
-        return false
-    }
-
     // MARK: Shell / AppleScript helpers
 
     private static func bundleIdentifier(of app: URL) -> String? {
@@ -214,8 +122,8 @@ enum IntegrationLauncher {
 }
 
 extension Notification.Name {
-    /// Posted when an agent CLI could not be run automatically; carries
-    /// the command the user should paste into the terminal that just opened.
+    /// Posted when a CLI action could not be run in a scriptable terminal;
+    /// carries the command the user should paste into the window that opened.
     static let ffAgentCommandHint = Notification.Name("ffAgentCommandHint")
 }
 
