@@ -88,7 +88,7 @@ struct DetailsTableView: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.parent = self
 
-        guard let tableView = scrollView.documentView as? RenameableTableView else { return }
+        guard scrollView.documentView is RenameableTableView else { return }
 
         coordinator.syncColumnsIfNeeded()
         coordinator.reload(files: files, preservingSelection: selectedIDs)
@@ -393,8 +393,7 @@ struct DetailsTableView: NSViewRepresentable {
         }
 
         func tableViewColumnDidResize(_ notification: Notification) {
-            guard let tableView,
-                  let column = notification.userInfo?["NSTableColumn"] as? NSTableColumn,
+            guard let column = notification.userInfo?["NSTableColumn"] as? NSTableColumn,
                   let kind = ColumnKind(rawValue: column.identifier.rawValue) else { return }
             // Persist straight away; rebuilds read the live width, so no extra state is
             // needed here and a following reorder cannot discard it.

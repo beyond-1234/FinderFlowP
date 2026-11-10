@@ -3,7 +3,10 @@ import AppKit
 import Combine
 
 /// Shared handle so the format toolbar can reach the live `NSTextView`.
-@MainActor
+///
+/// Not @MainActor: every entry point is already main-thread (SwiftUI views, and
+/// NotificationCenter observers registered with `queue: .main`). Annotating the class
+/// made those @Sendable observer closures unprovable under Swift 5.8.
 final class MarkdownEditorController: ObservableObject {
     weak var textView: NSTextView?
     @Published private(set) var canUndo = false
@@ -18,18 +21,16 @@ final class MarkdownEditorController: ObservableObject {
         let nc = NotificationCenter.default
         if let undoObserver { nc.removeObserver(undoObserver) }
         if let redoObserver { nc.removeObserver(redoObserver) }
-        undoObserver = nc.addObserver(forName: .NSUndoManagerDidCloseUndoGroup, object: tv.undoManager, queue: .main) { [weak self] _ in
-            self?.refreshUndoState()
+        func observe(_ name: Notification.Name, object: Any?) -> NSObjectProtocol {
+            nc.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+                self?.refreshUndoState()
+            }
         }
-        redoObserver = nc.addObserver(forName: .NSUndoManagerDidUndoChange, object: tv.undoManager, queue: .main) { [weak self] _ in
-            self?.refreshUndoState()
-        }
-        nc.addObserver(forName: .NSUndoManagerDidRedoChange, object: tv.undoManager, queue: .main) { [weak self] _ in
-            self?.refreshUndoState()
-        }
-        nc.addObserver(forName: NSText.didChangeNotification, object: tv, queue: .main) { [weak self] _ in
-            self?.refreshUndoState()
-        }
+
+        undoObserver = observe(.NSUndoManagerDidCloseUndoGroup, object: tv.undoManager)
+        redoObserver = observe(.NSUndoManagerDidUndoChange,     object: tv.undoManager)
+        _ = observe(.NSUndoManagerDidRedoChange,               object: tv.undoManager)
+        _ = observe(NSText.didChangeNotification,              object: tv)
     }
 
     func refreshUndoState() {
