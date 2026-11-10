@@ -22,7 +22,6 @@
 		BBBBBBBBBBBBBBBBBBBB0002 /* FileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBBBBBBBBBBBBBBBBBB0001 /* FileItem.swift */; };
 		BBBBBBBBBBBBBBBBBBBB0004 /* ListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBBBBBBBBBBBBBBBBBB0003 /* ListView.swift */; };
 		BBBBBBBBBBBBBBBBBBBB0006 /* IconsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBBBBBBBBBBBBBBBBBB0005 /* IconsView.swift */; };
-		BBBBBBBBBBBBBBBBBBBB0008 /* ColumnsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBBBBBBBBBBBBBBBBBB0007 /* ColumnsView.swift */; };
 		BBBBBBBBBBBBBBBBBBBB000A /* StatusBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBBBBBBBBBBBBBBBBBBB0009 /* StatusBarView.swift */; };
 		EEEEEEEEEEEEEEEEEEEE0002 /* FileDragSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEEEEEEEEEEEEEEEEEE0001 /* FileDragSupport.swift */; };
 		CCCCCCCCCCCCCCCCCCCC0002 /* MarkdownReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCCCCCCCCCCCCCCCCCCC0001 /* MarkdownReaderView.swift */; };
@@ -111,7 +110,6 @@
 		BBBBBBBBBBBBBBBBBBBB0001 /* FileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileItem.swift; sourceTree = "<group>"; };
 		BBBBBBBBBBBBBBBBBBBB0003 /* ListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListView.swift; sourceTree = "<group>"; };
 		BBBBBBBBBBBBBBBBBBBB0005 /* IconsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconsView.swift; sourceTree = "<group>"; };
-		BBBBBBBBBBBBBBBBBBBB0007 /* ColumnsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnsView.swift; sourceTree = "<group>"; };
 		BBBBBBBBBBBBBBBBBBBB0009 /* StatusBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBarView.swift; sourceTree = "<group>"; };
 		EEEEEEEEEEEEEEEEEEEE0001 /* FileDragSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDragSupport.swift; sourceTree = "<group>"; };
 		CCCCCCCCCCCCCCCCCCCC0001 /* MarkdownReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownReaderView.swift; sourceTree = "<group>"; };
@@ -218,7 +216,6 @@
 				BBBBBBBBBBBBBBBBBBBB0001 /* FileItem.swift */,
 				BBBBBBBBBBBBBBBBBBBB0003 /* ListView.swift */,
 				BBBBBBBBBBBBBBBBBBBB0005 /* IconsView.swift */,
-				BBBBBBBBBBBBBBBBBBBB0007 /* ColumnsView.swift */,
 				BBBBBBBBBBBBBBBBBBBB0009 /* StatusBarView.swift */,
 				EEEEEEEEEEEEEEEEEEEE0001 /* FileDragSupport.swift */,
 				CCCCCCCCCCCCCCCCCCCC0001 /* MarkdownReaderView.swift */,
@@ -427,7 +424,6 @@
 				BBBBBBBBBBBBBBBBBBBB0002 /* FileItem.swift in Sources */,
 				BBBBBBBBBBBBBBBBBBBB0004 /* ListView.swift in Sources */,
 				BBBBBBBBBBBBBBBBBBBB0006 /* IconsView.swift in Sources */,
-				BBBBBBBBBBBBBBBBBBBB0008 /* ColumnsView.swift in Sources */,
 				BBBBBBBBBBBBBBBBBBBB000A /* StatusBarView.swift in Sources */,
 				EEEEEEEEEEEEEEEEEEEE0002 /* FileDragSupport.swift in Sources */,
 				CCCCCCCCCCCCCCCCCCCC0002 /* MarkdownReaderView.swift in Sources */,

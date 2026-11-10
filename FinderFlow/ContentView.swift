@@ -27,7 +27,6 @@ struct ContentView: View {
     @AppStorage(UserPreferences.folderOrderKey)    private var folderOrderRaw    = UserPreferences.defaultFolderOrder.rawValue
     @AppStorage(UserPreferences.showHiddenKey)     private var showHidden        = false
     @AppStorage(UserPreferences.showPreviewKey)    private var showPreview       = false
-    @AppStorage(UserPreferences.showColumnTreeKey) private var showColumnTree    = false
     @AppStorage(UserPreferences.didShowFirstRunKey) private var didShowFirstRun  = false
     @State private var showFirstRun = false
     @State private var folderWatcher = FolderChangeWatcher()
@@ -130,17 +129,16 @@ struct ContentView: View {
                     groupBy:        groupByBinding,
                     folderOrder:    folderOrderBinding,
                     showPreview:    $showPreview,
-                    showColumnTree: $showColumnTree,
                     onReload:       reload
                 )
                 .resetsCursorOnEnter()
 
-                // Right preview panel — list/icon views only (column view has inline preview)
+                // Right preview panel
                 HStack(spacing: 0) {
                     fileBrowser
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if showPreview && viewMode != .columns {
+                    if showPreview {
                         Divider()
                         FilePreviewPanel(item: selectedItem)
                             .frame(width: 260)
@@ -547,15 +545,7 @@ struct ContentView: View {
             }
     }
 
-    /// The shared mouse router serves the list and icon views. The column browser has
-    /// its own click semantics — clicking a folder appends a column and moves the
-    /// preview — so routing its clicks through the generic selection path would set the
-    /// selection while skipping the column update, leaving the panes stuck.
     private func syncMouseRouter() {
-        guard viewMode != .columns else {
-            mouseRouter.stop()
-            return
-        }
         mouseRouter.updateItems(displayFiles)
         mouseRouter.syncSelection(selectedIDs)
         mouseRouter.start()
@@ -590,22 +580,6 @@ struct ContentView: View {
                 onReload:    reload,
                 fileOps:     fileOps,
                 favorites:   favorites
-            )
-        case .columns:
-            ColumnsView(
-                currentPath:    $currentPath,
-                selectedIDs:    $selectedIDs,
-                showHidden:     showHidden,
-                showColumnTree: showColumnTree,
-                groupBy:        groupBy,
-                sortField:      sortField,
-                sortAscending:  sortAscending,
-                folderOrder:    folderOrder,
-                fileOps:        fileOps,
-                favorites:      favorites,
-                searchResults:  displayFiles,
-                isSearchActive: !searchEngine.query.isEmpty || activeTagFilter != nil,
-                onOpen:         navigate
             )
         }
     }

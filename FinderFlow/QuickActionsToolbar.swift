@@ -30,7 +30,6 @@ struct QuickActionsToolbar: View {
     @Binding var groupBy:        GroupBy
     @Binding var folderOrder:    FolderOrder
     @Binding var showPreview:    Bool
-    @Binding var showColumnTree: Bool
     let onReload:                () -> Void
 
     @ObservedObject private var integrations = IntegrationStore.shared
@@ -136,8 +135,8 @@ struct QuickActionsToolbar: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 92)
-            .fastTooltip("Switch view")
+            .frame(width: 66)
+            .fastTooltip("Switch view (List / Icons)")
 
             ToolbarToggleButton(isOn: $showHidden,
                                 on: "eye",
@@ -166,13 +165,6 @@ struct QuickActionsToolbar: View {
                                 on: "sidebar.trailing",
                                 off: "sidebar.trailing",
                                 help: "File preview panel")
-
-            if viewMode == .columns {
-                ToolbarToggleButton(isOn: $showColumnTree,
-                                    on: "sidebar.left",
-                                    off: "rectangle.split.1x2",
-                                    help: "Folder tree in column view")
-            }
         }
     }
 

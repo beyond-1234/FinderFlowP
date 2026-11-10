@@ -10,7 +10,6 @@ enum UserPreferences {
     static let folderOrderKey    = "ffFolderOrder"
     static let showHiddenKey     = "ffShowHidden"
     static let showPreviewKey    = "ffShowPreview"
-    static let showColumnTreeKey = "ffShowColumnTree"
     /// Bumped key so FinderFlowP enforces its own default settings
     static let defaultsMigratedKey = "ffBrowseDefaultsMigrated200"
     static let didShowFirstRunKey  = "ffDidShowFirstRun"
