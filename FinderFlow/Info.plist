@@ -49,6 +49,7 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>public.folder</string>
+				<string>public.directory</string>
 			</array>
 		</dict>
 	</array>

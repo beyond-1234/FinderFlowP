@@ -35,15 +35,18 @@ enum DefaultFolderHandler {
                               fileViewer: String?,
                               completion: @escaping (Error?) -> Void) {
         // The modern NSWorkspace setter only targets a single file URL; setting the
-        // default for an entire content type (every folder) still goes through
+        // default for an entire content type (every folder/directory) still goes through
         // LaunchServices' role-handler API.
-        let status = LSSetDefaultRoleHandlerForContentType("public.folder" as CFString,
-                                                           .all,
-                                                           handlerBundleID as CFString)
+        let status1 = LSSetDefaultRoleHandlerForContentType("public.folder" as CFString,
+                                                            .all,
+                                                            handlerBundleID as CFString)
+        let status2 = LSSetDefaultRoleHandlerForContentType("public.directory" as CFString,
+                                                            .all,
+                                                            handlerBundleID as CFString)
         setGlobalFileViewer(fileViewer)
-        let error: Error? = (status == noErr)
+        let error: Error? = (status1 == noErr && status2 == noErr)
             ? nil
-            : NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            : NSError(domain: NSOSStatusErrorDomain, code: Int(status1 != noErr ? status1 : status2))
         completion(error)
     }
 
@@ -146,9 +149,9 @@ struct SettingsView: View {
                     set: { applyDefault($0) }
                 )) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Open folders in FinderFlow")
+                        Text("Open folders in FinderFlowP")
                             .font(.headline)
-                        Text("Routes folder-open actions (the `open` command, other apps, and “Open With”) to FinderFlow instead of Finder.")
+                        Text("Routes folder-open actions (the `open` command, other apps, and “Open With”) to FinderFlowP instead of Finder.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -165,7 +168,7 @@ struct SettingsView: View {
             }
 
             Section("What this can and can't do") {
-                Label("FinderFlow opens when you open a folder from Terminal, other apps, or “Open With”.",
+                Label("FinderFlowP opens when you open a folder from Terminal, other apps, or “Open With”.",
                       systemImage: "checkmark.circle")
                     .foregroundStyle(.green)
                 Label("Finder can't be fully replaced. The Desktop, drive mounting, Open/Save dialogs and the Dock’s Finder icon always stay Finder.",
@@ -191,7 +194,7 @@ struct SettingsView: View {
             if let error {
                 statusMessage = "Couldn’t update the setting: \(error.localizedDescription)"
             } else if enable {
-                statusMessage = "FinderFlow is now the default for folders. Log out and back in if some apps still open Finder."
+                statusMessage = "FinderFlowP is now the default for folders. Log out and back in if some apps still open Finder."
             } else {
                 statusMessage = "Finder restored as the default for folders."
             }
