@@ -421,6 +421,40 @@ struct ContentView: View {
 
     @ViewBuilder
     private var fileBrowser: some View {
+        routedBrowser
+    }
+
+    @ViewBuilder
+    private var routedBrowser: some View {
+        browserContent
+            .browserAreaMarker()
+            .onAppear {
+                MouseRouter.shared.updateItems(displayFiles)
+                MouseRouter.shared.syncSelection(selectedIDs)
+                MouseRouter.shared.start()
+            }
+            .onDisappear { MouseRouter.shared.stop() }
+            .onChange(of: displayFiles) { files in
+                MouseRouter.shared.updateItems(files)
+            }
+            .onChange(of: selectedIDs) { ids in
+                MouseRouter.shared.syncSelection(ids)
+            }
+            .onReceive(MouseRouter.shared.$selectionIntent) { intent in
+                guard let intent else { return }
+                if selectedIDs != intent { selectedIDs = intent }
+            }
+            .onReceive(MouseRouter.shared.$openIntent) { id in
+                guard let id else { return }
+                if let item = displayFiles.first(where: { $0.id == id }) {
+                    navigateItem(item)
+                }
+                MouseRouter.shared.openIntent = nil
+            }
+    }
+
+    @ViewBuilder
+    private var browserContent: some View {
         switch viewMode {
         case .list:
             ListView(

@@ -27,23 +27,12 @@ struct IconsView: View {
                         Section {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 ForEach(group.items) { item in
-                                    ZStack {
-                                        Color.clear
-                                            .contentShape(Rectangle())
-                                            .onTapGesture(count: 2) { onNavigate(item) }
-                                            .onTapGesture { selectedIDs = [item.id] }
-                                        IconCell(item: item, iconSize: iconSize, isSelected: selectedIDs.contains(item.id))
-                                            .allowsHitTesting(false)
-                                    }
-                                    .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
-                                    .contextMenu {
-                                        iconContextMenu(item: item)
-                                            .onAppear {
-                                                if !selectedIDs.contains(item.id) {
-                                                    selectedIDs = [item.id]
-                                                }
-                                            }
-                                    }
+                                    IconCell(item: item, iconSize: iconSize, isSelected: selectedIDs.contains(item.id))
+                                        .contentShape(Rectangle())
+                                        .itemHitArea(item.id)
+                                        .onTapGesture(count: 2) { onNavigate(item) }
+                                        .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
+                                        .contextMenu { iconContextMenu(item: item) }
                                 }
                             }
                             .padding(.horizontal, 16)
@@ -57,15 +46,7 @@ struct IconsView: View {
                 }
                 .padding(.vertical, 12)
             }
-            .background(
-                Color(nsColor: .textBackgroundColor)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if !selectedIDs.isEmpty {
-                            selectedIDs.removeAll()
-                        }
-                    }
-            )
+            .background(Color(nsColor: .textBackgroundColor))
             .contextMenu { FolderBackgroundMenu() }
             .background(
                 Button("") { quickLook() }

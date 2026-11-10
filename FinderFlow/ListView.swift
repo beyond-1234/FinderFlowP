@@ -26,7 +26,6 @@ struct ListView: View {
     @State private var renameCancelled: Bool   = false
     @FocusState private var renameActive: Bool
     @State private var keyMonitor: Any?
-    @State private var mouseMonitor: Any?
 
     var body: some View {
         if groupBy != .none {
@@ -58,6 +57,7 @@ struct ListView: View {
         Table(files, selection: $selectedIDs, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.name) { item in
                 fileNameCell(for: item)
+                    .itemHitArea(item.id)
                     .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
             }
             .width(min: 140, ideal: 280, max: 600)
@@ -112,11 +112,9 @@ struct ListView: View {
         .onAppear {
             syncSortOrder()
             attachKeyboardMonitor()
-            attachMouseMonitor()
         }
         .onDisappear {
             removeKeyboardMonitor()
-            removeMouseMonitor()
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
@@ -223,94 +221,6 @@ struct ListView: View {
         if let monitor = keyMonitor {
             NSEvent.removeMonitor(monitor)
             keyMonitor = nil
-        }
-    }
-
-    private func attachMouseMonitor() {
-        guard mouseMonitor == nil else { return }
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { event in
-            // When editing text (renaming or search), let normal flow through
-            if let responder = NSApp.keyWindow?.firstResponder,
-               responder is NSTextField || responder is NSTextView {
-                return event
-            }
-
-            guard let window = event.window ?? NSApp.keyWindow,
-                  let hitView = window.contentView?.hitTest(event.locationInWindow) else {
-                return event
-            }
-
-            // Ascend from the clicked view to find its enclosing NSTableView
-            var currentView: NSView? = hitView
-            var targetTable: NSTableView? = nil
-            while let v = currentView {
-                if let tv = v as? NSTableView {
-                    targetTable = tv
-                    break
-                }
-                currentView = v.superview
-            }
-
-            guard let tableView = targetTable else {
-                return event
-            }
-
-            let point = tableView.convert(event.locationInWindow, from: nil)
-            let row = tableView.row(at: point)
-
-            if event.type == .rightMouseDown {
-                // 1. Right click on a file row -> instantly highlight in UI
-                if row >= 0 && row < files.count {
-                    let clickedItem = files[row]
-                    if !selectedIDs.contains(clickedItem.id) {
-                        tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                        DispatchQueue.main.async {
-                            self.selectedIDs = [clickedItem.id]
-                        }
-                    }
-                }
-                return event
-            } else if event.type == .otherMouseDown && event.buttonNumber == 2 {
-                // 2. Middle click -> highlight and open target file/folder directly
-                if row >= 0 && row < files.count {
-                    let clickedItem = files[row]
-                    tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                    DispatchQueue.main.async {
-                        self.selectedIDs = [clickedItem.id]
-                        self.onNavigate(clickedItem)
-                    }
-                    return nil
-                }
-            } else if event.type == .leftMouseDown {
-                // 3. Left click on empty space (row == -1) -> deselect
-                if row == -1 {
-                    if !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
-                        tableView.deselectAll(nil)
-                        DispatchQueue.main.async {
-                            self.selectedIDs.removeAll()
-                        }
-                    }
-                } else if row >= 0 && row < files.count {
-                    // Left click on valid row -> give instant UI selection feedback without waiting for drag timeout
-                    if !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
-                        let clickedID = files[row].id
-                        if !selectedIDs.contains(clickedID) || selectedIDs.count > 1 {
-                            tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
-                            DispatchQueue.main.async {
-                                self.selectedIDs = [clickedID]
-                            }
-                        }
-                    }
-                }
-            }
-            return event
-        }
-    }
-
-    private func removeMouseMonitor() {
-        if let monitor = mouseMonitor {
-            NSEvent.removeMonitor(monitor)
-            mouseMonitor = nil
         }
     }
 
@@ -434,6 +344,7 @@ struct GroupedListView: View {
                         }
                         .tag(item.id)
                         .id(item.id)
+                        .itemHitArea(item.id)
                         .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
                         .contextMenu { listContextMenu(item: item) }
                     }
