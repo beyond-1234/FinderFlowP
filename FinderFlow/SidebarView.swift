@@ -137,11 +137,13 @@ struct SidebarView: View {
             if !mountedVolumes.isEmpty {
                 Section("Drives & Locations") {
                     ForEach(mountedVolumes) { vol in
-                        VolumeSidebarRow(volume: vol)
+                        VolumeSidebarRow(volume: vol, onEject: {
+                            unmountVolume(vol.url)
+                        })
                             .tag(SidebarItem.drive(vol.url))
                             .contextMenu {
                                 if vol.isRemovable {
-                                    Button("Eject \"\(vol.name)\"") {
+                                    Button("Eject “\(vol.name)”") {
                                         unmountVolume(vol.url)
                                     }
                                 }
@@ -233,6 +235,7 @@ struct SidebarView: View {
             let keys: [URLResourceKey] = [
                 .volumeNameKey,
                 .volumeIsRemovableKey,
+                .volumeIsEjectableKey,
                 .volumeIsInternalKey,
                 .volumeAvailableCapacityKey,
                 .volumeTotalCapacityKey
@@ -247,12 +250,14 @@ struct SidebarView: View {
                     return nil
                 }
                 let avail = Int64(vals.volumeAvailableCapacity ?? 0)
-                let isRemovable = vals.volumeIsRemovable ?? false
+                let isEjectable = (vals.volumeIsRemovable == true) ||
+                                  (vals.volumeIsEjectable == true) ||
+                                  (vals.volumeIsInternal == false && url.path != "/")
                 let icon = NSWorkspace.shared.icon(forFile: url.path)
                 return MountedVolumeInfo(
                     name: name,
                     url: url,
-                    isRemovable: isRemovable,
+                    isRemovable: isEjectable,
                     totalBytes: Int64(total),
                     availableBytes: avail,
                     icon: icon
@@ -265,10 +270,74 @@ struct SidebarView: View {
     }
 
     private func unmountVolume(_ url: URL) {
-        do {
-            try NSWorkspace.shared.unmountAndEjectDevice(at: url)
-        } catch {
-            print("Failed to unmount: \(error)")
+        // If currentPath is inside this volume, navigate back to Home first to close
+        // folder watchers, directory handles, and avoid broken path states.
+        if currentPath.path.hasPrefix(url.path) {
+            currentPath = FileManager.default.homeDirectoryForCurrentUser
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var success = false
+
+            // 1. Native AppKit unmount & eject
+            do {
+                try NSWorkspace.shared.unmountAndEjectDevice(at: url)
+                success = true
+            } catch {
+                // Expected for certain DMGs (e.g. Jianying installer) or busy disks
+            }
+
+            // 2. diskutil eject (standard macOS volume eject tool)
+            if !success {
+                let p = Process()
+                p.launchPath = "/usr/sbin/diskutil"
+                p.arguments = ["eject", url.path]
+                try? p.run()
+                p.waitUntilExit()
+                if p.terminationStatus == 0 {
+                    success = true
+                }
+            }
+
+            // 3. hdiutil detach (specifically designed for disk images such as .dmg)
+            if !success {
+                let p = Process()
+                p.launchPath = "/usr/bin/hdiutil"
+                p.arguments = ["detach", url.path]
+                try? p.run()
+                p.waitUntilExit()
+                if p.terminationStatus == 0 {
+                    success = true
+                }
+            }
+
+            // 4. hdiutil detach -force (for disk images with lingering daemon/preview locks)
+            if !success {
+                let p = Process()
+                p.launchPath = "/usr/bin/hdiutil"
+                p.arguments = ["detach", url.path, "-force"]
+                try? p.run()
+                p.waitUntilExit()
+                if p.terminationStatus == 0 {
+                    success = true
+                }
+            }
+
+            // 5. diskutil unmount force (for non-DMG volumes that are busy)
+            if !success {
+                let p = Process()
+                p.launchPath = "/usr/sbin/diskutil"
+                p.arguments = ["unmount", "force", url.path]
+                try? p.run()
+                p.waitUntilExit()
+                if p.terminationStatus == 0 {
+                    success = true
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.refreshVolumes()
+            }
         }
     }
 
@@ -412,6 +481,7 @@ struct MountedVolumeInfo: Hashable, Identifiable {
 
 struct VolumeSidebarRow: View {
     let volume: MountedVolumeInfo
+    var onEject: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -424,9 +494,15 @@ struct VolumeSidebarRow: View {
                     .font(.body)
                 Spacer()
                 if volume.isRemovable {
-                    Image(systemName: "eject.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Button {
+                        onEject?()
+                    } label: {
+                        Image(systemName: "eject.circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .fastTooltip("Eject “\(volume.name)”")
                 }
             }
             if volume.totalBytes > 0 {
