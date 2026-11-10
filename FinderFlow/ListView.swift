@@ -58,6 +58,7 @@ struct ListView: View {
             files: files,
             selectedIDs: $selectedIDs,
             columns: visibleColumns,
+            profile: columnProfile,
             sortField: sortField,
             sortAscending: sortAscending,
             renamingID: renamingID,
@@ -91,11 +92,16 @@ struct ListView: View {
         )
         .onAppear {
             attachKeyboardMonitor()
-            refreshColumnProfile()
+            refreshColumnProfile(force: true)
             loadMetadataIfNeeded()
         }
         .onDisappear {
             removeKeyboardMonitor()
+        }
+        .onChange(of: currentPath) { _ in
+            // A new folder means a possibly different column profile.
+            refreshColumnProfile(force: true)
+            loadMetadataIfNeeded()
         }
         .onChange(of: files) { _ in
             refreshColumnProfile()
@@ -120,12 +126,21 @@ struct ListView: View {
     @State private var visibleColumns: [ColumnKind] = ColumnConfigStore.shared
         .config(for: .generic).order
 
-    private func refreshColumnProfile() {
+    /// Re-detect the profile. `force` also reloads the column set even when the profile
+    /// is unchanged, which is what a navigation needs (a different folder can share a
+    /// profile name but still deserve its persisted layout re-read).
+    private func refreshColumnProfile(force: Bool = false) {
         let profile = ColumnProfile.detect(from: files)
-        guard profile != columnProfile else { return }
-        columnProfile = profile
-        visibleColumns = ColumnConfigStore.shared.config(for: profile).order
-        loadMetadataIfNeeded()
+
+        if profile != columnProfile {
+            columnProfile = profile
+            visibleColumns = ColumnConfigStore.shared.config(for: profile).order
+            loadMetadataIfNeeded()
+            return
+        }
+        if force {
+            visibleColumns = ColumnConfigStore.shared.config(for: columnProfile).order
+        }
     }
 
     /// Media columns need a metadata pass; only run it when one is visible.

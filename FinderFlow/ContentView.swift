@@ -606,10 +606,17 @@ struct ContentView: View {
 
     private func refreshDisplayFiles() {
         let computed = computeDisplayFiles()
-        if computed.count != cachedDisplayFiles.count
-            || computed.first?.id != cachedDisplayFiles.first?.id {
-            cachedDisplayFiles = computed
-        }
+        guard !sameFileList(computed, cachedDisplayFiles) else { return }
+        cachedDisplayFiles = computed
+    }
+
+    /// Compare by identity, not just count. The previous count/first-item check missed
+    /// switches between two equally-sized folders and stale content after a reload,
+    /// which also stopped the column profile from being recalculated.
+    private func sameFileList(_ a: [FileItem], _ b: [FileItem]) -> Bool {
+        guard a.count == b.count else { return false }
+        for (lhs, rhs) in zip(a, b) where lhs.id != rhs.id { return false }
+        return true
     }
 
     private func computeDisplayFiles() -> [FileItem] {

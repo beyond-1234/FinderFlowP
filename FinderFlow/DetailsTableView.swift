@@ -16,6 +16,8 @@ struct DetailsTableView: NSViewRepresentable {
     @Binding var selectedIDs: Set<String>
     /// Visible columns in display order.
     let columns: [ColumnKind]
+    /// Active profile — decides which columns the header menu offers.
+    let profile: ColumnProfile
     let sortField: SortField
     let sortAscending: Bool
     /// Selected folder/file row for rename and double-click.
@@ -110,13 +112,18 @@ struct DetailsTableView: NSViewRepresentable {
             guard let tableView else { return }
             tableView.tableColumns.forEach { tableView.removeTableColumn($0) }
 
+            let config = ColumnConfigStore.shared.config(for: parent.profile)
             for kind in visibleColumns {
                 let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(kind.rawValue))
                 column.title = kind.title
-                column.width = ColumnConfigStore.shared.config(for: .generic).width(for: kind)
+                column.width = config.width(for: kind)
                 column.minWidth = kind.minWidth
                 column.resizingMask = .userResizingMask
                 column.headerCell.alignment = kind.alignment == .right ? .right : .left
+                if kind.sortField != nil {
+                    column.sortDescriptorPrototype = NSSortDescriptor(key: kind.rawValue,
+                                                                      ascending: true)
+                }
                 tableView.addTableColumn(column)
             }
         }
@@ -139,7 +146,8 @@ struct DetailsTableView: NSViewRepresentable {
             title.isEnabled = false
             menu.addItem(title)
 
-            for kind in ColumnKind.menuOrder(for: .generic) {
+            // Offer the columns that make sense for *this* folder type, not a fixed list.
+            for kind in ColumnKind.menuOrder(for: parent.profile) {
                 let item = NSMenuItem(title: kind.title,
                                       action: #selector(toggleColumn(_:)),
                                       keyEquivalent: "")
@@ -149,6 +157,27 @@ struct DetailsTableView: NSViewRepresentable {
                 // Name is the anchor column.
                 item.isEnabled = kind != .name
                 menu.addItem(item)
+            }
+
+            // Always allow revealing every other column too, so a user can add Path or
+            // Permissions even in a Pictures folder.
+            let extras = ColumnKind.menuOrder(for: .generic).filter {
+                !ColumnKind.menuOrder(for: parent.profile).contains($0)
+            }
+            if !extras.isEmpty {
+                menu.addItem(.separator())
+                let more = NSMenuItem(title: "Other", action: nil, keyEquivalent: "")
+                more.isEnabled = false
+                menu.addItem(more)
+                for kind in extras {
+                    let item = NSMenuItem(title: kind.title,
+                                          action: #selector(toggleColumn(_:)),
+                                          keyEquivalent: "")
+                    item.target = self
+                    item.representedObject = kind.rawValue
+                    item.state = current.contains(kind) ? .on : .off
+                    menu.addItem(item)
+                }
             }
 
             menu.addItem(.separator())

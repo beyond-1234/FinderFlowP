@@ -144,14 +144,25 @@ enum ColumnProfile: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Column set used when the profile has never been customised.
+    ///
+    /// Deliberately the same six columns the list view shipped with, so switching to
+    /// the configurable table does not silently hide columns people already relied on.
     var defaults: [ColumnKind] {
         switch self {
-        case .images:       return [.name, .dimensions, .dateModified, .size, .kind]
-        case .audio:        return [.name, .title, .artist, .album, .duration, .dateModified]
-        case .video:        return [.name, .duration, .dimensions, .dateModified, .size]
-        case .documents:    return [.name, .pageCount, .dateModified, .size, .kind]
-        case .applications: return [.name, .version, .dateModified, .size]
-        case .generic:      return ColumnKind.baseSet
+        case .images:
+            return [.name, .dateModified, .dimensions, .dateCreated, .size, .kind, .fileExtension]
+        case .audio:
+            return [.name, .dateModified, .title, .artist, .album, .duration, .dateCreated, .size, .kind, .fileExtension]
+        case .video:
+            return [.name, .dateModified, .duration, .dimensions, .dateCreated, .size, .kind, .fileExtension]
+        case .documents:
+            return [.name, .dateModified, .pageCount, .dateCreated, .size, .kind, .fileExtension]
+        case .applications:
+            return [.name, .dateModified, .version, .dateCreated, .size, .kind, .fileExtension]
+        case .generic:
+            // The original six, in the original order.
+            return [.name, .dateModified, .dateCreated, .size, .kind, .fileExtension]
         }
     }
 
