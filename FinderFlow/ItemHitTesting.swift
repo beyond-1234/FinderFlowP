@@ -35,6 +35,8 @@ final class ItemHitView: NSView {
     var highlightCornerRadius: CGFloat = 6
     /// Inset of the drawn highlight from the view bounds.
     var highlightInset: CGFloat = 1
+    /// False when the host view paints its own highlight.
+    var paintsHighlight: Bool = true
 
     /// Never intercept clicks / drags / hover; the registry only reads geometry and
     /// paints. hitTest returning nil keeps drag-and-drop and double-click intact.
@@ -44,7 +46,7 @@ final class ItemHitView: NSView {
     override var isFlipped: Bool { true }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard isHighlighted, !isInsideTableView else { return }
+        guard isHighlighted, paintsHighlight, !isInsideTableView else { return }
         let rect = bounds.insetBy(dx: highlightInset, dy: highlightInset)
         guard rect.width > 0, rect.height > 0 else { return }
 
@@ -171,6 +173,10 @@ struct ItemHitArea: NSViewRepresentable {
     var isSelected: Bool = false
     var cornerRadius: CGFloat = 6
     var inset: CGFloat = 1
+    /// When false the view only registers geometry for hit testing and draws nothing.
+    /// The column view uses this: it lives inside a SwiftUI List, whose rows are table
+    /// cells that would skip drawing anyway, so it paints its highlight itself.
+    var paintsHighlight: Bool = true
 
     func makeNSView(context: Context) -> ItemHitView {
         let v = ItemHitView()
@@ -178,6 +184,7 @@ struct ItemHitArea: NSViewRepresentable {
         v.isHighlighted = isSelected
         v.highlightCornerRadius = cornerRadius
         v.highlightInset = inset
+        v.paintsHighlight = paintsHighlight
         return v
     }
 
@@ -185,6 +192,7 @@ struct ItemHitArea: NSViewRepresentable {
         view.itemID = itemID
         view.highlightCornerRadius = cornerRadius
         view.highlightInset = inset
+        view.paintsHighlight = paintsHighlight
         // Outside an NSTableView the cell owns its highlight, so mirror SwiftUI.
         if !view.isInsideTableView {
             view.isHighlighted = isSelected
@@ -198,11 +206,13 @@ extension View {
     func itemHitArea(_ itemID: String,
                      isSelected: Bool = false,
                      cornerRadius: CGFloat = 6,
-                     inset: CGFloat = 1) -> some View {
+                     inset: CGFloat = 1,
+                     paintsHighlight: Bool = true) -> some View {
         background(ItemHitArea(itemID: itemID,
                                isSelected: isSelected,
                                cornerRadius: cornerRadius,
-                               inset: inset))
+                               inset: inset,
+                               paintsHighlight: paintsHighlight))
     }
 }
 

@@ -498,12 +498,19 @@ struct ColumnPane: View {
                     }
                 }
                 .onTapGesture { onSelect(item) }
-            // Uses the shared selection and the same highlight treatment as the list and
-            // icon views, so a selection looks identical in all three.
             ColumnRow(item: item, isHighlighted: isSelected)
                 .allowsHitTesting(false)
         }
-        .itemHitArea(item.id, isSelected: isSelected, cornerRadius: 4, inset: 0)
+        // Painted by SwiftUI here rather than by the AppKit hit layer. The row lives
+        // inside a SwiftUI List (an NSTableView), where itemHitArea deliberately skips
+        // drawing because table rows normally draw their own selection — but this List
+        // has no `selection` binding, so nothing was drawn at all: the label turned
+        // white while the background stayed clear.
+        .background(isSelected ? Color.accentColor : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        // Still registered so the shared mouse router can resolve clicks and drags.
+        .itemHitArea(item.id, isSelected: isSelected,
+                     cornerRadius: 4, inset: 0, paintsHighlight: false)
         .fileDragOut(item: item, files: items,
                      selectedIDs: isSelected ? selectedIDs : [item.id])
         .contextMenu { columnContextMenu(item: item) }
