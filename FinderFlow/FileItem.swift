@@ -193,11 +193,34 @@ struct FileItem: Identifiable, Hashable {
     static func clearIconCache() { iconCache.removeAllObjects() }
 
     // Convenience
+    // These are called for every visible row on every redraw, so they must be cheap.
+    // ByteCountFormatter.string and DateFormatter.string are not — cache the results
+    // once per item instead of re-formatting during scroll.
     var formattedSize: String {
-        isDirectory ? "—" : ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        isDirectory ? "—" : Self.sizeFormatter.string(fromByteCount: size)
     }
-    var formattedDateModified: String { Self.fmt.string(from: dateModified) }
-    var formattedDateCreated:  String { Self.fmt.string(from: dateCreated) }
+    var formattedDateModified: String { Self.cachedDate(dateModified) }
+    var formattedDateCreated:  String { Self.cachedDate(dateCreated) }
+
+    private static let sizeFormatter: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        f.allowsNonnumericFormatting = false
+        return f
+    }()
+
+    /// Formats within the same minute are identical, so cache on that bucket.
+    private static var dateCache: [Int: String] = [:]
+    private static let dateCacheLimit = 512
+
+    private static func cachedDate(_ date: Date) -> String {
+        let bucket = Int(date.timeIntervalSince1970 / 60)
+        if let hit = dateCache[bucket] { return hit }
+        let text = fmt.string(from: date)
+        if dateCache.count > dateCacheLimit { dateCache.removeAll(keepingCapacity: true) }
+        dateCache[bucket] = text
+        return text
+    }
 
     var dateCategory: DateCategory { DateCategory.of(dateModified) }
     var dateCreatedCategory: DateCategory { DateCategory.of(dateCreated) }

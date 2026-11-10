@@ -293,16 +293,19 @@ final class IntegrationStore: ObservableObject {
     /// Resolve a CLI the way the user's shell would: known install dirs first
     /// (fast, no subprocess), then a login-shell `which` so nvm / asdf / poetry
     /// managed binaries are found too.
-    static func resolveCLI(_ name: String, shellPath: String?) -> String? {
+    static let fastCLIDirectories: [String] = {
         let home = NSHomeDirectory()
-        let dirs = [
+        return [
             "/opt/homebrew/bin", "/usr/local/bin",
             "\(home)/.local/bin", "\(home)/bin",
             "\(home)/.cargo/bin", "\(home)/.bun/bin",
             "\(home)/.volta/bin", "\(home)/.nix-profile/bin",
             "\(home)/.local/share/mise/shims",
         ]
-        for dir in dirs {
+    }()
+
+    static func resolveCLI(_ name: String, shellPath: String?) -> String? {
+        for dir in fastCLIDirectories {
             let p = (dir as NSString).appendingPathComponent(name)
             if FileManager.default.isExecutableFile(atPath: p) { return p }
         }
@@ -322,6 +325,15 @@ final class IntegrationStore: ObservableObject {
     static func loginShellPATH() -> String {
         if let cachedShellPATH { return cachedShellPATH }
 
+        // Spawning a login shell sources the user's rc files and can take seconds.
+        // Never block the UI on it: off the main thread we do the real lookup, on the
+        // main thread we fall back to the environment PATH (and let a background
+        // caller warm the cache later).
+        let fallback = ProcessInfo.processInfo.environment["PATH"]
+            ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+        guard !Thread.isMainThread else { return fallback }
+
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let p = Process()
         p.executableURL = URL(fileURLWithPath: shell)
@@ -335,9 +347,7 @@ final class IntegrationStore: ObservableObject {
             result = String(data: pipe.fileHandleForReading.readDataToEndOfFile(),
                             encoding: .utf8) ?? ""
         }
-        if result.isEmpty {
-            result = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
-        }
+        if result.isEmpty { result = fallback }
         cachedShellPATH = result
         return result
     }

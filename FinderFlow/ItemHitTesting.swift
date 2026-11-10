@@ -84,19 +84,28 @@ final class ItemHitView: NSView {
 final class ItemHitRegistry {
     static let shared = ItemHitRegistry()
 
-    private var entries: [ItemHitView] = []
+    /// Keyed by object identity so registration is O(1). The previous array-based
+    /// store scanned every entry on each registration — with a lazy grid recycling
+    /// cells while you scroll, that made scrolling O(n²) and dropped frames.
+    private var entries: [ObjectIdentifier: ItemHitView] = [:]
 
     func register(_ view: ItemHitView) {
-        entries.removeAll { $0 === view || $0.window == nil }
-        entries.append(view)
+        entries[ObjectIdentifier(view)] = view
     }
 
     func unregister(_ view: ItemHitView) {
-        entries.removeAll { $0 === view || $0.window == nil }
+        entries.removeValue(forKey: ObjectIdentifier(view))
     }
 
     func removeAll() {
         entries.removeAll()
+    }
+
+    /// Drop entries whose view left its window. Called opportunistically, never in a
+    /// per-cell hot path.
+    private func pruneDetached() {
+        guard entries.count > 64 else { return }
+        entries = entries.filter { $0.value.window != nil }
     }
 
     /// Resolve which item sits under a window-space point.
@@ -105,13 +114,10 @@ final class ItemHitRegistry {
         var bestID: String?
         var bestArea = CGFloat.greatestFiniteMagnitude
 
-        for view in entries {
-            guard let id = view.itemID, let window = view.window, window.isVisible else {
-                continue
-            }
-            guard let visibleRect = view.superview?.visibleRect, !visibleRect.isEmpty else {
-                continue
-            }
+        for (_, view) in entries {
+            guard let id = view.itemID,
+                  view.window != nil,
+                  !view.isHiddenOrHasHiddenAncestor else { continue }
             let localPoint = view.convert(point, from: nil)
             guard view.bounds.contains(localPoint) else { continue }
             let area = view.bounds.width * view.bounds.height
@@ -127,25 +133,18 @@ final class ItemHitRegistry {
     /// This is what makes right-click selection feel immediate in the icon view,
     /// where there is no NSTableView to do the drawing for us.
     func applyHighlight(_ ids: Set<String>) {
-        var dirtyWindows = Set<ObjectIdentifier>()
-        var windowsByID: [ObjectIdentifier: NSWindow] = [:]
+        pruneDetached()
+        var dirtyWindow: NSWindow?
 
-        for view in entries {
+        for (_, view) in entries {
             let shouldHighlight = view.itemID.map { ids.contains($0) } ?? false
             if view.isHighlighted != shouldHighlight {
                 view.isHighlighted = shouldHighlight
-            }
-            if let w = view.window {
-                let key = ObjectIdentifier(w)
-                dirtyWindows.insert(key)
-                windowsByID[key] = w
+                if dirtyWindow == nil { dirtyWindow = view.window }
             }
         }
 
-        for key in dirtyWindows {
-            guard let window = windowsByID[key] else { continue }
-            window.displayIfNeeded()
-        }
+        dirtyWindow?.displayIfNeeded()
     }
 }
 

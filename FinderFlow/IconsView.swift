@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct IconsView: View {
     let files:       [FileItem]
@@ -11,13 +12,8 @@ struct IconsView: View {
     @ObservedObject var fileOps:   FileOperationsService
     @ObservedObject var favorites: FavoritesService
 
-    @State private var iconSize: CGFloat = 64
-
-    private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: iconSize + 20, maximum: iconSize + 40), spacing: 8)]
-    }
-
-    private var groups: [FileGroup] { groupedItems(files, by: groupBy) }
+    /// Persisted so the chosen zoom survives navigation and relaunch.
+    @AppStorage("winfilesIconSize") private var iconSize: Double = 64
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +23,9 @@ struct IconsView: View {
                         Section {
                             LazyVGrid(columns: columns, spacing: 12) {
                                 ForEach(group.items) { item in
-                                    IconCell(item: item, iconSize: iconSize, isSelected: selectedIDs.contains(item.id))
+                                    IconCell(item: item,
+                                             iconSize: CGFloat(iconSize),
+                                             isSelected: selectedIDs.contains(item.id))
                                         .contentShape(Rectangle())
                                         .itemHitArea(item.id)
                                         .onTapGesture(count: 2) { onNavigate(item) }
@@ -53,17 +51,59 @@ struct IconsView: View {
                     .keyboardShortcut(.space, modifiers: [])
                     .hidden()
             )
+            // Control + scroll to zoom, like Finder's icon view.
+            .background(IconZoomScrollCatcher { delta in
+                adjustZoom(by: delta)
+            })
 
             HStack(spacing: 8) {
-                Image(systemName: "square.grid.3x3").font(.caption2).foregroundStyle(.secondary)
-                Slider(value: $iconSize, in: 32...128, step: 8).frame(width: 100)
-                Image(systemName: "square.grid.2x2").font(.caption2).foregroundStyle(.secondary)
+                Button { adjustZoom(by: -0.25) } label: {
+                    Image(systemName: "minus.magnifyingglass").font(.caption2)
+                }
+                .buttonStyle(.borderless)
+                .fastTooltip("Smaller icons (⌃-scroll or ⌘–)")
+
+                Slider(value: $iconSize, in: 32...160, step: 8)
+                    .frame(width: 110)
+                    .fastTooltip("Icon size")
+
+                Button { adjustZoom(by: 0.25) } label: {
+                    Image(systemName: "plus.magnifyingglass").font(.caption2)
+                }
+                .buttonStyle(.borderless)
+                .fastTooltip("Larger icons (⌃-scroll or ⌘+)")
             }
             .padding(.horizontal, 12).padding(.vertical, 4)
             .background(.bar)
             .overlay(alignment: .top) { Divider() }
+            .background(
+                Group {
+                    Button("") { adjustZoom(by: 0.25) }
+                        .keyboardShortcut("=", modifiers: .command).hidden()
+                    Button("") { adjustZoom(by: -0.25) }
+                        .keyboardShortcut("-", modifiers: .command).hidden()
+                }
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .winfilesZoomIcons)) { note in
+            guard let step = note.object as? Double else { return }
+            adjustZoom(by: step)
         }
     }
+
+    private func adjustZoom(by step: Double) {
+        let next = min(160, max(32, iconSize * (1 + step)))
+        // Snap to the slider's 8pt grid so scroll zoom and the slider agree.
+        iconSize = (next / 8).rounded() * 8
+    }
+
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: CGFloat(iconSize) + 20,
+                            maximum: CGFloat(iconSize) + 40),
+                  spacing: 8)]
+    }
+
+    private var groups: [FileGroup] { groupedItems(files, by: groupBy) }
 
     @ViewBuilder
     private func iconContextMenu(item: FileItem) -> some View {

@@ -103,24 +103,66 @@ enum ArchiveToolCatalog {
     ]
 
     /// Tools installed on this machine.
+    /// Cheap by design: fixed paths first, no shell spawn. The login-shell PATH is only
+    /// consulted as a fallback, and that lookup is cached.
     static func installed() -> [ArchiveTool] {
+        var result: [ArchiveTool] = []
+
+        for tool in all {
+            if tool.id == "builtin" {
+                result.append(tool)
+                continue
+            }
+            if isInstalledWithoutShell(tool) {
+                result.append(tool)
+            }
+        }
+        return result
+    }
+
+    /// Same list, but allowed to spawn a login shell (slow; call off the main thread).
+    static func installedIncludingShellLookup() -> [ArchiveTool] {
         let shellPath = IntegrationStore.loginShellPATH()
         return all.filter { tool in
             if tool.id == "builtin" { return true }
-            if !tool.bundleIDs.isEmpty {
-                for bid in tool.bundleIDs where NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) != nil {
-                    return true
-                }
-            }
-            for path in tool.appPaths where FileManager.default.fileExists(atPath: path) {
-                return true
-            }
+            if isInstalledWithoutShell(tool) { return true }
             if let cli = tool.cli,
                IntegrationStore.resolveCLI(cli, shellPath: shellPath) != nil {
                 return true
             }
             return false
         }
+    }
+
+    /// Bundle IDs and well-known paths only — never touches the shell.
+    private static func isInstalledWithoutShell(_ tool: ArchiveTool) -> Bool {
+        for bid in tool.bundleIDs
+        where NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) != nil {
+            return true
+        }
+        for path in tool.appPaths where FileManager.default.fileExists(atPath: path) {
+            return true
+        }
+        if let cli = tool.cli {
+            for dir in IntegrationStore.fastCLIDirectories {
+                let p = (dir as NSString).appendingPathComponent(cli)
+                if FileManager.default.isExecutableFile(atPath: p) { return true }
+            }
+        }
+        return false
+    }
+
+    /// True when this tool ships its own compression UI (a real .app).
+    static func hasOwnUI(_ tool: ArchiveTool) -> Bool {
+        guard tool.id != "builtin" else { return false }
+        for bid in tool.bundleIDs
+        where NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) != nil {
+            return true
+        }
+        for path in tool.appPaths where FileManager.default.fileExists(atPath: path) {
+            return true
+        }
+        return false
     }
 
     static func tool(id: String) -> ArchiveTool? {

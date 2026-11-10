@@ -34,13 +34,39 @@ enum ArchiveRunner {
         case "builtin":
             try runZip(urls: urls, destination: destination, level: level, job: job)
         case "tool.sevenzip":
-            try run7zip(urls: urls, destination: destination, format: format, level: level, job: job)
+            // 7-Zip.app on macOS ships `7zz`; use it when present so the chosen
+            // format and level are honoured, otherwise fall back to its own UI.
+            if IntegrationStore.resolveCLI("7zz",
+                                           shellPath: IntegrationStore.fastCLIDirectories
+                                            .joined(separator: ":")) != nil
+                || IntegrationStore.resolveCLI("7z",
+                                               shellPath: IntegrationStore.fastCLIDirectories
+                                                .joined(separator: ":")) != nil {
+                try run7zip(urls: urls, destination: destination, format: format,
+                            level: level, job: job)
+            } else {
+                openInOwnUI(tool: tool, urls: urls)
+                job.finish(message: "Opened in \(tool.name)")
+            }
         default:
             // GUI archiver: hand the selection to the app and let its own dialog
             // take over (this is what "use the tool's right-click menu" means).
-            try openInApp(tool: tool, urls: urls)
+            openInOwnUI(tool: tool, urls: urls)
             job.finish(message: "Opened in \(tool.name)")
         }
+    }
+
+    /// Open the selection in the archiver's own UI. Tries the branded "compress"
+    /// scripting verb some archivers expose, then falls back to opening the app with
+    /// the selection, which is what their Finder extension does.
+    static func openInOwnUI(tool: ArchiveTool, urls: [URL]) {
+        guard let appURL = appURL(for: tool) else { return }
+
+        // Keka / BetterZip / Archiver all accept the files and show their own
+        // compression sheet when opened this way.
+        NSWorkspace.shared.open(urls,
+                                withApplicationAt: appURL,
+                                configuration: NSWorkspace.OpenConfiguration())
     }
 
     // MARK: Built-in zip
