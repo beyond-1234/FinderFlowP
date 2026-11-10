@@ -417,12 +417,17 @@ struct ContentView: View {
 
     // MARK: - Selection
 
-    /// Select every visible item (⌘A). Previously nothing handled this shortcut, so
-    /// SwiftUI's default (select-all on the focused AppKit view) did nothing useful.
+    /// Toggle select-all (⌘A):
+    /// - If everything is already selected: deselect all (toggle off).
+    /// - Otherwise (nothing selected, or only a subset): select all visible items.
     func selectAll() {
-        let ids = Set(displayFiles.map(\.id))
-        guard !ids.isEmpty, ids != selectedIDs else { return }
-        selectedIDs = ids
+        let allIDs = Set(displayFiles.map(\.id))
+        guard !allIDs.isEmpty else { return }
+        if selectedIDs == allIDs {
+            selectedIDs.removeAll()
+        } else {
+            selectedIDs = allIDs
+        }
     }
 
     func clearSelection() {

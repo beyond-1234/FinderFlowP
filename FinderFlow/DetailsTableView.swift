@@ -552,6 +552,27 @@ final class RenameableTableView: NSTableView {
         return menuProvider?(selected)
     }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Toggle select-all on ⌘A: first press selects all, second press clears.
+        // NSTableView's built-in performKeyEquivalent would otherwise unconditionally
+        // select-all every time, ignoring the toggle behaviour.
+        if event.modifierFlags.contains(.command),
+           event.charactersIgnoringModifiers?.lowercased() == "a" {
+            if let delegate = delegate as? DetailsTableView.Coordinator {
+                let allIDs = Set(delegate.currentFiles.map(\.id))
+                if !allIDs.isEmpty {
+                    if delegate.parent.selectedIDs == allIDs {
+                        delegate.parent.selectedIDs.removeAll()
+                    } else {
+                        delegate.parent.selectedIDs = allIDs
+                    }
+                    return true
+                }
+            }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
         switch event.keyCode {
         case 36: // Return opens
