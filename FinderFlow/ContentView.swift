@@ -525,12 +525,9 @@ struct ContentView: View {
                 // Scope this window's router (and its highlight repaints) to the window.
                 mouseRouter.bind(to: window)
             })
-            .onAppear {
-                mouseRouter.updateItems(displayFiles)
-                mouseRouter.syncSelection(selectedIDs)
-                mouseRouter.start()
-            }
+            .onAppear { syncMouseRouter() }
             .onDisappear { mouseRouter.stop() }
+            .onChange(of: viewMode) { _ in syncMouseRouter() }
             .onChange(of: displayFiles) { files in
                 mouseRouter.updateItems(files)
             }
@@ -548,6 +545,20 @@ struct ContentView: View {
                 }
                 mouseRouter.openIntent = nil
             }
+    }
+
+    /// The shared mouse router serves the list and icon views. The column browser has
+    /// its own click semantics — clicking a folder appends a column and moves the
+    /// preview — so routing its clicks through the generic selection path would set the
+    /// selection while skipping the column update, leaving the panes stuck.
+    private func syncMouseRouter() {
+        guard viewMode != .columns else {
+            mouseRouter.stop()
+            return
+        }
+        mouseRouter.updateItems(displayFiles)
+        mouseRouter.syncSelection(selectedIDs)
+        mouseRouter.start()
     }
 
     @ViewBuilder

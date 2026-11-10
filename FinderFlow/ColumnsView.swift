@@ -154,9 +154,6 @@ struct ColumnsView: View {
                     selectedFileURL = selected.url
                 }
             },
-            onSelectMany: { ids in
-                selectedIDs = ids
-            },
             onBrowseInto: { url in
                 columns = Array(columns.prefix(idx + 1)) + [url]
                 currentPath = url
@@ -414,8 +411,6 @@ struct ColumnPane: View {
     let sortAscending:  Bool
     let folderOrder:    FolderOrder
     let onSelect:       (FileItem) -> Void
-    /// Shift/Cmd-click and ⌘A ranges, applied to the shared selection.
-    let onSelectMany:   (Set<String>) -> Void
     let onBrowseInto:   (URL) -> Void
     let onOpen:         (URL) -> Void
     @ObservedObject var fileOps:   FileOperationsService
@@ -501,16 +496,16 @@ struct ColumnPane: View {
             ColumnRow(item: item, isHighlighted: isSelected)
                 .allowsHitTesting(false)
         }
-        // Painted by SwiftUI here rather than by the AppKit hit layer. The row lives
-        // inside a SwiftUI List (an NSTableView), where itemHitArea deliberately skips
-        // drawing because table rows normally draw their own selection — but this List
-        // has no `selection` binding, so nothing was drawn at all: the label turned
-        // white while the background stayed clear.
+        // Painted by SwiftUI here. The row lives inside a SwiftUI List (an NSTableView),
+        // where itemHitArea deliberately skips drawing because table rows normally draw
+        // their own selection — but this List has no `selection` binding, so nothing
+        // would be drawn at all.
+        //
+        // No itemHitArea registration either: the column browser handles its own clicks
+        // (selecting a folder appends a column), and the shared mouse router is kept off
+        // in this mode. Registering would only pollute its hit testing.
         .background(isSelected ? Color.accentColor : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 4))
-        // Still registered so the shared mouse router can resolve clicks and drags.
-        .itemHitArea(item.id, isSelected: isSelected,
-                     cornerRadius: 4, inset: 0, paintsHighlight: false)
         .fileDragOut(item: item, files: items,
                      selectedIDs: isSelected ? selectedIDs : [item.id])
         .contextMenu { columnContextMenu(item: item) }
