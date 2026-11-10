@@ -130,6 +130,7 @@ struct QuickActionsToolbar: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(width: 92)
             .fastTooltip("Switch view")
 

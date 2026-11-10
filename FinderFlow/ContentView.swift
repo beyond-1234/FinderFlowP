@@ -610,7 +610,10 @@ struct ContentView: View {
 
     private func attachMouseMonitor() {
         guard mouseMonitor == nil else { return }
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown]) { event in
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .keyDown]) { event in
+            if event.type == .keyDown {
+                return handleWindowKey(event)
+            }
             switch event.buttonNumber {
             case 3: // 鼠标侧键后退
                 goBack()
@@ -621,6 +624,37 @@ struct ContentView: View {
             default:
                 break
             }
+            return event
+        }
+    }
+
+    /// Window-level keys that must work in every view mode.
+    /// Backspace with nothing selected goes to the parent folder — the Explorer /
+    /// Dolphin behaviour. With a selection, the list's own monitor trashes it first
+    /// and never reaches here.
+    private func handleWindowKey(_ event: NSEvent) -> NSEvent? {
+        if let responder = NSApp.keyWindow?.firstResponder,
+           responder is NSTextField || responder is NSTextView {
+            return event
+        }
+
+        switch event.keyCode {
+        case 51: // Backspace / Delete
+            if selectedIDs.isEmpty {
+                goUp()
+                return nil
+            }
+            return event
+        case 123 where event.modifierFlags.contains(.command): // Cmd + Left
+            goUp()
+            return nil
+        case 53: // Escape
+            if !selectedIDs.isEmpty {
+                selectedIDs.removeAll()
+                return nil
+            }
+            return event
+        default:
             return event
         }
     }
@@ -704,6 +738,10 @@ struct ContentView: View {
     private func watchOpenFolder() {
         let path = currentPath
         folderWatcher.onChange = {
+            // A paste in flight rewrites this folder; reloading now would draw the
+            // half-written destination file (the "empty temp icon"). The paste
+            // completion triggers its own reload, so just skip these.
+            guard !fileOps.isBusy else { return }
             NotificationCenter.default.post(name: .refreshDirectory, object: path)
         }
         folderWatcher.watch(path)

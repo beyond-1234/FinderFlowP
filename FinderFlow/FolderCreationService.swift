@@ -113,6 +113,7 @@ class FolderCreationService: ObservableObject {
 class FileOperationsService: ObservableObject {
     @Published var clipboardURLs:      [URL]           = []
     @Published var isCut:              Bool            = false
+    @Published var isBusy:             Bool            = false
     @Published var lastOpURL:          URL?
     @Published var errorMessage:       String?
     @Published var lastActionFeedback: ActionFeedback?
@@ -155,61 +156,81 @@ class FileOperationsService: ObservableObject {
 
     // MARK: Paste
 
+    /// Paste runs off the main thread: `FileManager.copyItem` blocks for as long as
+    /// the data takes to write, and doing that on the main queue froze the whole
+    /// window (and delayed the completion toast behind the copy).
+    ///
+    /// While the copy is in flight `isBusy` is true, which lets the directory watcher
+    /// skip its reloads so the half-written destination file never shows up as an
+    /// empty icon.
     func paste(to destination: URL, reload: @escaping () -> Void) {
         let sources = pasteboardURLs
-        guard !sources.isEmpty else { return }
+        guard !sources.isEmpty, !isBusy else { return }
         let wasCut = isCut
 
-        var pasted: [URL] = []
-        for src in sources {
-            let dest = uniqueURL(for: destination.appendingPathComponent(src.lastPathComponent))
-            do {
-                if wasCut { try FileManager.default.moveItem(at: src, to: dest) }
-                else       { try FileManager.default.copyItem(at: src, to: dest) }
-                pasted.append(dest)
-            } catch {
-                // Stop on the first failure but still register undo for whatever
-                // already succeeded — otherwise a partial move would strand files
-                // at the destination with no way to undo them.
-                DispatchQueue.main.async { self.errorMessage = error.localizedDescription }
-                break
-            }
-        }
+        // Immediate acknowledgement so the action never looks ignored.
+        lastActionFeedback = ActionFeedback(icon: "doc.on.clipboard",
+                                            message: wasCut ? "Moving…" : "Copying…")
+        isBusy = true
 
-        // Nothing got pasted (e.g. the very first item failed) — the error is
-        // already surfaced; don't register an empty undo or show a success toast.
-        guard !pasted.isEmpty else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            var pasted: [URL] = []
+            var failure: Error?
 
-        if wasCut { clipboardURLs = []; isCut = false }
-
-        if wasCut {
-            // Move: undo by moving items back to their original locations
-            let pairs = zip(sources, pasted).map { ($0, $1) }
-            undoMgr.registerUndo(withTarget: self) { _ in
-                for (orig, dest) in pairs {
-                    try? FileManager.default.moveItem(at: dest, to: orig)
+            for src in sources {
+                let dest = self.uniqueURL(for: destination.appendingPathComponent(src.lastPathComponent))
+                do {
+                    if wasCut { try FileManager.default.moveItem(at: src, to: dest) }
+                    else       { try FileManager.default.copyItem(at: src, to: dest) }
+                    pasted.append(dest)
+                } catch {
+                    // Stop on the first failure but keep undo for whatever already
+                    // succeeded — otherwise a partial move would strand files at the
+                    // destination with no way to undo them.
+                    failure = error
+                    break
                 }
-                reload()
             }
-        } else {
-            // Copy: undo by removing the copies
-            undoMgr.registerUndo(withTarget: self) { _ in
-                pasted.forEach { try? FileManager.default.removeItem(at: $0) }
-                reload()
-            }
-        }
-        undoMgr.setActionName(wasCut ? "Move" : "Paste")
-        objectWillChange.send()
 
-        let count = pasted.count
-        let label = count == 1 ? "\"\(pasted[0].lastPathComponent)\"" : "\(count) items"
-        DispatchQueue.main.async {
-            self.lastActionFeedback = ActionFeedback(
-                icon: "doc.on.clipboard",
-                message: (wasCut ? "Moved " : "Pasted ") + label
-            )
-            self.lastOpURL = pasted.first
-            reload()
+            DispatchQueue.main.async {
+                self.isBusy = false
+                if let failure {
+                    self.errorMessage = failure.localizedDescription
+                }
+                // Nothing pasted (e.g. the very first item failed) — the error is
+                // already surfaced; don't register an empty undo or show a success toast.
+                guard !pasted.isEmpty else { reload(); return }
+
+                if wasCut { self.clipboardURLs = []; self.isCut = false }
+
+                if wasCut {
+                    // Move: undo by moving items back to their original locations
+                    let pairs = zip(sources, pasted).map { ($0, $1) }
+                    self.undoMgr.registerUndo(withTarget: self) { _ in
+                        for (orig, dest) in pairs {
+                            try? FileManager.default.moveItem(at: dest, to: orig)
+                        }
+                        reload()
+                    }
+                } else {
+                    // Copy: undo by removing the copies
+                    self.undoMgr.registerUndo(withTarget: self) { _ in
+                        pasted.forEach { try? FileManager.default.removeItem(at: $0) }
+                        reload()
+                    }
+                }
+                self.undoMgr.setActionName(wasCut ? "Move" : "Paste")
+                self.objectWillChange.send()
+
+                let count = pasted.count
+                let label = count == 1 ? "\"\(pasted[0].lastPathComponent)\"" : "\(count) items"
+                self.lastActionFeedback = ActionFeedback(
+                    icon: "doc.on.clipboard",
+                    message: (wasCut ? "Moved " : "Pasted ") + label
+                )
+                self.lastOpURL = pasted.first
+                reload()
+            }
         }
     }
 

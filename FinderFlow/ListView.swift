@@ -199,12 +199,15 @@ struct ListView: View {
                     startRename(item: item)
                     return nil
                 }
-            case 51: // Delete / Backspace -> Trash
+            case 51: // Backspace / Delete
                 let sel = files.filter { selectedIDs.contains($0.id) }
                 if !sel.isEmpty {
                     fileOps.trash(sel.map(\.url), reload: onReload)
                     return nil
                 }
+                // Nothing selected: hand back to the window-level monitor, which
+                // treats Backspace as "go to parent folder".
+                return event
             case 53: // Escape -> Cancel Cut
                 if fileOps.isCut {
                     fileOps.cancelCut()

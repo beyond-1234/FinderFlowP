@@ -23,6 +23,33 @@ enum SearchScope: String, CaseIterable {
         }
     }
 
+    /// Full menu title — states what the option actually searches.
+    var menuTitle: String {
+        switch self {
+        case .thisFolder:          return "Current Folder Only"
+        case .thisFolderRecursive: return "Current Folder + All Subfolders"
+        case .desktop:             return "Desktop Folder"
+        case .documents:           return "Documents Folder"
+        case .downloads:           return "Downloads Folder"
+        case .home:                return "Home Folder (everything under ~)"
+        case .entireMac:           return "Whole Mac (Spotlight index)"
+        }
+    }
+
+    /// Phrase used inside the search field placeholder, so the field itself
+    /// explains the active scope.
+    var searchPlace: String {
+        switch self {
+        case .thisFolder:          return "this folder"
+        case .thisFolderRecursive: return "this folder and its subfolders"
+        case .desktop:             return "Desktop"
+        case .documents:           return "Documents"
+        case .downloads:           return "Downloads"
+        case .home:                return "your home folder"
+        case .entireMac:           return "the whole Mac"
+        }
+    }
+
     var icon: String {
         switch self {
         case .thisFolder:          return "folder"
@@ -74,8 +101,8 @@ struct SearchScopeView: View {
     var body: some View {
         HStack(spacing: 8) {
 
-            // ── Search field (first: this is what you use most) ────────────
-            HStack(spacing: 4) {
+            // ── Search field (fills the row) ───────────────────────────────
+            HStack(spacing: 5) {
                 if searchEngine.isSearching {
                     ProgressView()
                         .scaleEffect(0.55)
@@ -86,7 +113,8 @@ struct SearchScopeView: View {
                         .font(.caption)
                 }
 
-                TextField("Search names… (e.g. report, .pdf)", text: $searchEngine.query)
+                TextField("Search file names in \(searchEngine.selectedScope.searchPlace)…",
+                          text: $searchEngine.query)
                     .textFieldStyle(.plain)
                     .resetsCursorOnExit()
                     .onSubmit { runSearch() }
@@ -109,69 +137,68 @@ struct SearchScopeView: View {
                     }
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
-                    .help("Clear search")
+                    .fastTooltip("Clear search")
+                }
+
+                if !searchEngine.query.isEmpty && !searchEngine.isSearching {
+                    Text("\(searchEngine.results.count) found")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, 5)
             .background(Color(nsColor: .textBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
             )
-            .frame(maxWidth: 420)
+            .frame(maxWidth: .infinity)
 
-            // ── Where to search (after the field it modifies) ──────────────
-            Menu {
-                Picker("Search in", selection: $searchEngine.selectedScope) {
-                    ForEach(SearchScope.allCases, id: \.self) { scope in
-                        Label {
-                            Text(scope.rawValue)
-                        } icon: {
-                            Image(systemName: scope.icon)
-                        }
-                        .tag(scope)
-                    }
-                }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: searchEngine.selectedScope.icon)
-                        .font(.caption2)
-                    Text(searchEngine.selectedScope.shortLabel)
-                        .font(.system(size: 11))
-                        .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .semibold))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                )
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Search in: \(searchEngine.selectedScope.rawValue) — \(searchEngine.selectedScope.detail)")
-            .onChange(of: searchEngine.selectedScope) { _ in
-                guard !searchEngine.query.isEmpty else { return }
-                runSearch()
-            }
-
-            // ── Result count badge ────────────────────────────────────────
-            if !searchEngine.query.isEmpty && !searchEngine.isSearching {
-                Text("\(searchEngine.results.count) found")
-                    .font(.caption2)
+            // ── Where to search ────────────────────────────────────────────
+            HStack(spacing: 6) {
+                Text("Search in:")
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize()
-            }
 
-            Spacer(minLength: 0)
+                Menu {
+                    Picker("Search in", selection: $searchEngine.selectedScope) {
+                        ForEach(SearchScope.allCases, id: \.self) { scope in
+                            Text(scope.menuTitle).tag(scope)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: searchEngine.selectedScope.icon)
+                            .font(.caption2)
+                        Text(searchEngine.selectedScope.shortLabel)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                    )
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .fastTooltip("Where the search runs — \(searchEngine.selectedScope.detail)")
+                .onChange(of: searchEngine.selectedScope) { _ in
+                    guard !searchEngine.query.isEmpty else { return }
+                    runSearch()
+                }
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
