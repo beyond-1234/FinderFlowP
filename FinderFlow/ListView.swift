@@ -133,6 +133,9 @@ struct ListView: View {
             Button("") { quickLook(ids: selectedIDs) }
                 .keyboardShortcut(.space, modifiers: []).hidden()
         )
+        // Clears the column-resize cursor once the pointer leaves the header, without
+        // any SwiftUI work (see RowCursorEnforcer for why that matters).
+        .background(RowCursorEnforcer())
     }
 
     @ViewBuilder
