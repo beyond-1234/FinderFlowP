@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum SidebarItem: Hashable {
+    case place(URL)
     case location(URL)
     case drive(URL)
     case pinned(URL)
@@ -8,9 +9,63 @@ enum SidebarItem: Hashable {
 
     var folderURL: URL {
         switch self {
-        case .location(let url), .drive(let url), .pinned(let url), .recent(let url):
+        case .place(let url), .location(let url), .drive(let url),
+             .pinned(let url), .recent(let url):
             return url
         }
+    }
+}
+
+// MARK: - Standard user places (Dolphin-style)
+
+/// The default user folders, like Dolphin's Places panel: Home first, then the
+/// XDG-style user directories. Only folders that actually exist are listed.
+struct UserPlace: Identifiable, Hashable {
+    let id: String
+    let url: URL
+    let title: String
+    let symbol: String
+
+    static func standard() -> [UserPlace] {
+        let fm = FileManager.default
+        var places: [UserPlace] = []
+
+        func add(_ key: String, _ symbol: String, _ url: URL?, _ fallbackTitle: String) {
+            guard let url, fm.fileExists(atPath: url.path) else { return }
+            places.append(UserPlace(id: key,
+                                    url: url,
+                                    title: fallbackTitle,
+                                    symbol: symbol))
+        }
+
+        // Home first — that is the "user space" root in Dolphin.
+        add("home", "house.fill", fm.homeDirectoryForCurrentUser, "Home")
+
+        let userDomain = FileManager.SearchPathDomainMask.userDomainMask
+        add("desktop",   "menubar.dock.rectangle",
+            fm.urls(for: .desktopDirectory,   in: userDomain).first, "Desktop")
+        add("downloads", "arrow.down.circle.fill",
+            fm.urls(for: .downloadsDirectory, in: userDomain).first, "Downloads")
+        add("documents", "doc.text.fill",
+            fm.urls(for: .documentDirectory,  in: userDomain).first, "Documents")
+        add("pictures",  "photo.fill",
+            fm.urls(for: .picturesDirectory,  in: userDomain).first, "Pictures")
+        add("music",     "music.note",
+            fm.urls(for: .musicDirectory,     in: userDomain).first, "Music")
+        add("movies",    "film.fill",
+            fm.urls(for: .moviesDirectory,    in: userDomain).first, "Movies")
+
+        // Applications is not a user document folder, but it is a Dolphin-style
+        // place people expect right below the user folders.
+        let apps = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        if fm.fileExists(atPath: apps.path) {
+            places.append(UserPlace(id: "applications",
+                                    url: apps,
+                                    title: "Applications",
+                                    symbol: "square.grid.2x2.fill"))
+        }
+
+        return places
     }
 }
 
@@ -59,11 +114,22 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
 
-            // ── System locations ──────────────────────────────────────────
-            Section("Favorites") {
-                ForEach(systemLocations, id: \.self) { url in
-                    SidebarRow(url: url)
-                        .tag(SidebarItem.location(url))
+            // ── Places (Dolphin-style default user folders) ────────────────
+            Section("Places") {
+                ForEach(userPlaces) { place in
+                    PlaceRow(place: place)
+                        .tag(SidebarItem.place(place.url))
+                        .contextMenu {
+                            Button("Open in New Window") {
+                                NSWorkspace.shared.open(place.url)
+                            }
+                            Button("Copy Path") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(place.url.path, forType: .string)
+                                NotificationCenter.default.post(name: .ffCopyPathFeedback,
+                                                                object: nil)
+                            }
+                        }
                 }
             }
 
@@ -86,12 +152,12 @@ struct SidebarView: View {
 
             // ── User-pinned folders ───────────────────────────────────────
             if !favorites.pinnedURLs.isEmpty {
-                Section("Pinned") {
+                Section("Favorites") {
                     ForEach(favorites.pinnedURLs, id: \.self) { url in
                         SidebarRow(url: url)
                             .tag(SidebarItem.pinned(url))
                             .contextMenu {
-                                Button("Remove from Pinned") { favorites.unpin(url) }
+                                Button("Remove from Favorites") { favorites.unpin(url) }
                             }
                     }
                     .onDelete { idx in
@@ -143,15 +209,7 @@ struct SidebarView: View {
         }
     }
 
-    private var systemLocations: [URL] {
-        let fm = FileManager.default
-        return [
-            fm.homeDirectoryForCurrentUser,
-            fm.urls(for: .desktopDirectory,  in: .userDomainMask).first,
-            fm.urls(for: .documentDirectory, in: .userDomainMask).first,
-            fm.urls(for: .downloadsDirectory, in: .userDomainMask).first,
-        ].compactMap { $0 }
-    }
+    private var userPlaces: [UserPlace] { UserPlace.standard() }
 
     private func refreshVolumes() {
         DispatchQueue.global(qos: .utility).async {
@@ -235,6 +293,31 @@ struct SidebarView: View {
         .listRowBackground(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
         .onTapGesture {
             activeTagFilter = isActive ? nil : tag
+        }
+    }
+}
+
+/// A default user folder row: localised name when the system has one, and the
+/// folder's own icon so Home/Desktop/Downloads look like they do in Finder.
+struct PlaceRow: View {
+    let place: UserPlace
+
+    private var displayName: String {
+        // macOS localises standard folders via the URL resource; fall back to our label.
+        if let localized = try? place.url.resourceValues(forKeys: [.localizedNameKey])
+            .localizedName, !localized.isEmpty {
+            return localized
+        }
+        return place.title
+    }
+
+    var body: some View {
+        Label {
+            Text(displayName).lineLimit(1)
+        } icon: {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: place.url.path))
+                .resizable()
+                .frame(width: 16, height: 16)
         }
     }
 }
