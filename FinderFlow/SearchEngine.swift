@@ -20,9 +20,26 @@ func metadataQueryURLs(_ q: NSMetadataQuery) -> [URL] {
 class SearchEngine: ObservableObject {
     @Published var query          = ""
     @Published var results:   [URL] = []
-    @Published var selectedScope: SearchScope = .thisFolder
+
+    /// Default scope is the current folder *and* its subfolders: searching only the
+    /// visible folder almost never finds what people actually want.
+    /// Persisted, so a user's own choice survives relaunch.
+    @Published var selectedScope: SearchScope = SearchEngine.storedScope() {
+        didSet {
+            UserDefaults.standard.set(selectedScope.rawValue,
+                                      forKey: SearchEngine.scopeKey)
+        }
+    }
+
     @Published var showHidden = false
     @Published var isSearching    = false
+
+    private static let scopeKey = "winfilesSearchScope"
+
+    private static func storedScope() -> SearchScope {
+        let raw = UserDefaults.standard.string(forKey: scopeKey)
+        return raw.flatMap(SearchScope.init(rawValue:)) ?? .thisFolderRecursive
+    }
 
     private var metadataQuery:      NSMetadataQuery?
     private var spotlightObservers: [NSObjectProtocol] = []

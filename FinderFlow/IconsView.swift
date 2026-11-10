@@ -120,7 +120,7 @@ struct IconsView: View {
     private func iconPrimarySection(item: FileItem, targets: [FileItem], urls: [URL]) -> some View {
         Button("Open") { onNavigate(item) }
         if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+            Button("Open in New Window") { openInNewWindow(item.url) }
         } else if item.isPackage {
             Button("Show Package Contents") { onBrowseInto(item.url) }
         }
@@ -205,6 +205,14 @@ struct IconsView: View {
                 fileOps.permanentlyDelete(urls, reload: onReload)
             }
         }
+    }
+
+
+    /// Open a folder in a separate FinderFlow window (not in Finder).
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
+
+    private func openInNewWindow(_ url: URL) {
+        openWindowBox.open(url)
     }
 
     private func quickLook() {

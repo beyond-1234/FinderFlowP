@@ -121,7 +121,7 @@ struct SidebarView: View {
                         .tag(SidebarItem.place(place.url))
                         .contextMenu {
                             Button("Open in New Window") {
-                                NSWorkspace.shared.open(place.url)
+                                openInNewWindow(place.url)
                             }
                             Button("Copy Path") {
                                 NSPasteboard.general.clearContents()
@@ -207,6 +207,13 @@ struct SidebarView: View {
             guard path.hasDirectoryPath else { return }
             DispatchQueue.main.async { addToRecent(path) }
         }
+    }
+
+    /// Open a folder in a separate FinderFlow window (not in Finder).
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
+
+    private func openInNewWindow(_ url: URL) {
+        openWindowBox.open(url)
     }
 
     private var userPlaces: [UserPlace] { UserPlace.standard() }

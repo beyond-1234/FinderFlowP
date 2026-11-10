@@ -185,7 +185,7 @@ struct ColumnsView: View {
             }
         }
         if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+            Button("Open in New Window") { openInNewWindow(item.url) }
         }
         Divider()
         Button("Quick Look") { QuickLookController.shared.show([item.url]) }
@@ -216,6 +216,13 @@ struct ColumnsView: View {
             paths.insert(path, at: 0)
         }
         columns = paths
+    }
+
+    /// Open a folder in a separate FinderFlow window (not in Finder).
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
+
+    private func openInNewWindow(_ url: URL) {
+        openWindowBox.open(url)
     }
 }
 
@@ -500,7 +507,7 @@ struct ColumnPane: View {
             }
         }
         if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+            Button("Open in New Window") { openInNewWindow(item.url) }
         } else if item.isPackage {
             Button("Show Package Contents") { onBrowseInto(item.url) }
         }
@@ -579,6 +586,14 @@ struct ColumnPane: View {
                 fileOps.permanentlyDelete(urls, reload: reload)
             }
         }
+    }
+
+
+    /// Open a folder in a separate FinderFlow window (not in Finder).
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
+
+    private func openInNewWindow(_ url: URL) {
+        openWindowBox.open(url)
     }
 
     // MARK: - Helpers

@@ -3,6 +3,13 @@ import Quartz
 import Darwin
 
 struct ContentView: View {
+    /// Folder this window starts in. `nil` means "the user's home".
+    let initialPath: URL?
+
+    init(initialPath: URL? = nil) {
+        self.initialPath = initialPath
+    }
+
     @StateObject private var folderService = FolderCreationService()
     @StateObject private var searchEngine  = SearchEngine()
     @StateObject private var fileOps       = FileOperationsService()
@@ -24,6 +31,8 @@ struct ContentView: View {
     @AppStorage(UserPreferences.didShowFirstRunKey) private var didShowFirstRun  = false
     @State private var showFirstRun = false
     @State private var folderWatcher = FolderChangeWatcher()
+
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
 
     private var viewMode: ViewMode       { ViewMode.fromStorage(viewModeRaw) }
     private var sortField: SortField     { SortField.fromStorage(sortFieldRaw) }
@@ -165,6 +174,11 @@ struct ContentView: View {
         }
         .frame(minWidth: 860, minHeight: 520)
         .background(QLResponderSetup())
+        .providingNewWindowOpener()
+        .onReceive(NotificationCenter.default.publisher(for: .openFolderInNewWindow)) { note in
+            guard let url = note.object as? URL else { return }
+            openWindowBox.open(url)
+        }
 
         // ── Keyboard shortcuts ──────────────────────────────────────────
         .background(keyboardShortcuts)
@@ -175,6 +189,9 @@ struct ContentView: View {
         // ── Lifecycle ───────────────────────────────────────────────────
         .onAppear {
             lastPath = currentPath
+            if let initialPath, initialPath != currentPath {
+                currentPath = initialPath
+            }
             UserPreferences.migrateBrowseDefaultsIfNeeded()
             reload()
             watchOpenFolder()

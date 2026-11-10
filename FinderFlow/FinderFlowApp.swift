@@ -7,9 +7,15 @@ struct FinderFlowApp: App {
     @StateObject private var favorites = FavoritesService()
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        // A URL-keyed WindowGroup gives each "Open in New Window" request its own
+        // window: SwiftUI presents a new scene for a value it has not seen yet.
+        // Relying on NSWorkspace.open(folder) instead handed the folder to Finder,
+        // because LaunchServices routes folders to the system's default handler.
+        WindowGroup(for: URL.self) { $url in
+            ContentView(initialPath: url)
                 .environmentObject(favorites)
+        } defaultValue: {
+            FileManager.default.homeDirectoryForCurrentUser
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -27,6 +33,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Folder requested while launching before any window is ready (cold launch).
     /// ContentView consumes this on first appear.
     static var pendingNavigationURL: URL?
+
+    /// Folders that should open in their *own* window rather than navigating the
+    /// current one. ContentView drains this list.
+    static var pendingNewWindowURLs: [URL] = []
+
+    /// Ask for a separate window showing `url`.
+    @MainActor
+    static func requestNewWindow(for url: URL) {
+        NSApp.activate(ignoringOtherApps: true)
+        // `openWindow(value:)` is only reachable from SwiftUI; the notification is the
+        // delegate-side path, handled by whichever ContentView is on screen.
+        NotificationCenter.default.post(name: .openFolderInNewWindow, object: url)
+    }
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -157,6 +176,8 @@ extension Notification.Name {
     static let createNewFile     = Notification.Name("createNewFile")
     static let toggleHiddenFiles = Notification.Name("toggleHiddenFiles")
     static let navigateToPath    = Notification.Name("navigateToPath")
+    /// object: URL to show in a brand-new window.
+    static let openFolderInNewWindow = Notification.Name("openFolderInNewWindow")
     static let refreshDirectory  = Notification.Name("FinderFlow.refreshDirectory")
     static let ffCopyPathFeedback = Notification.Name("FF.copyPathFeedback")
 }

@@ -270,6 +270,14 @@ struct ListView: View {
         )
     }
 
+
+    /// Open a folder in a separate FinderFlow window (not in Finder).
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
+
+    private func openInNewWindow(_ url: URL) {
+        openWindowBox.open(url)
+    }
+
     // MARK: - Helpers
 
     private func quickLook(ids: Set<String>) {
@@ -549,11 +557,19 @@ struct ItemMenuContent: View {
 
     // Split into small computed sections: one giant ViewBuilder expression made the
     // type checker give up ("failed to produce diagnostic").
+
+    /// Open a folder in a separate FinderFlow window (not in Finder).
+    @Environment(\.winfilesOpenWindow) private var openWindowBox
+
+    private func openInNewWindow(_ url: URL) {
+        openWindowBox.open(url)
+    }
+
     @ViewBuilder
     private func primarySection(item: FileItem, urls: [URL]) -> some View {
         Button("Open") { onNavigate(item) }
         if item.isBrowsableFolder {
-            Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+            Button("Open in New Window") { openInNewWindow(item.url) }
         } else if item.isPackage {
             Button("Show Package Contents") { onBrowseInto(item.url) }
         }
