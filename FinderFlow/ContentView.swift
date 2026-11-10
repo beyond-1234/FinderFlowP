@@ -583,6 +583,7 @@ struct ContentView: View {
         case .columns:
             ColumnsView(
                 currentPath:    $currentPath,
+                selectedIDs:    $selectedIDs,
                 showHidden:     showHidden,
                 showColumnTree: showColumnTree,
                 groupBy:        groupBy,

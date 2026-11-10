@@ -9,6 +9,9 @@ private let kPreviewWidth:    CGFloat = 260
 
 struct ColumnsView: View {
     @Binding var currentPath: URL
+    /// Unified selection, shared with the list and icon views so ⌘A, the status bar
+    /// and the context menus all agree on what is selected.
+    @Binding var selectedIDs: Set<String>
     let showHidden:     Bool
     let showColumnTree: Bool
     let groupBy:        GroupBy
@@ -130,22 +133,18 @@ struct ColumnsView: View {
 
     @ViewBuilder
     private func paneAndHandle(idx: Int, dir: URL) -> some View {
-        // The last column highlights the selected file; other columns highlight the next dir.
-        let highlighted: URL? = {
-            if idx + 1 < columns.count { return columns[idx + 1] }
-            if idx == columns.count - 1 { return selectedFileURL }
-            return nil
-        }()
-
         ColumnPane(
             directory:      dir,
-            highlightedURL: highlighted,
+            selectedIDs:    $selectedIDs,
             showHidden:     showHidden,
             groupBy:        groupBy,
             sortField:      sortField,
             sortAscending:  sortAscending,
             folderOrder:    folderOrder,
             onSelect: { selected in
+                // Browsing into a folder replaces the selection with it; selecting a
+                // file records it so ⌘A and the status bar see it.
+                selectedIDs = [selected.id]
                 if selected.isBrowsableFolder {
                     columns = Array(columns.prefix(idx + 1)) + [selected.url]
                     currentPath = selected.url
@@ -154,6 +153,9 @@ struct ColumnsView: View {
                     columns = Array(columns.prefix(idx + 1))
                     selectedFileURL = selected.url
                 }
+            },
+            onSelectMany: { ids in
+                selectedIDs = ids
             },
             onBrowseInto: { url in
                 columns = Array(columns.prefix(idx + 1)) + [url]
@@ -405,13 +407,15 @@ private final class _ResizeCursorTrackerView: NSView {
 
 struct ColumnPane: View {
     let directory:      URL
-    let highlightedURL: URL?
+    @Binding var selectedIDs: Set<String>
     let showHidden:     Bool
     let groupBy:        GroupBy
     let sortField:      SortField
     let sortAscending:  Bool
     let folderOrder:    FolderOrder
     let onSelect:       (FileItem) -> Void
+    /// Shift/Cmd-click and ⌘A ranges, applied to the shared selection.
+    let onSelectMany:   (Set<String>) -> Void
     let onBrowseInto:   (URL) -> Void
     let onOpen:         (URL) -> Void
     @ObservedObject var fileOps:   FileOperationsService
@@ -421,7 +425,16 @@ struct ColumnPane: View {
     @State private var reloadGeneration: UInt = 0
     @State private var folderWatcher = FolderChangeWatcher()
 
-    private var groups: [FileGroup] { groupedItems(items, by: groupBy) }
+    /// Cached because it is read on every body evaluation, and a column browser can have
+    /// several panes on screen while the pointer moves.
+    @State private var groups: [FileGroup] = []
+
+    private func refreshGroups() {
+        let computed = groupedItems(items, by: groupBy)
+        if computed.map(\.id) != groups.map(\.id) {
+            groups = computed
+        }
+    }
 
     var body: some View {
         List {
@@ -473,6 +486,7 @@ struct ColumnPane: View {
 
     @ViewBuilder
     private func rowFor(_ item: FileItem) -> some View {
+        let isSelected = selectedIDs.contains(item.id)
         ZStack {
             Color.clear
                 .contentShape(Rectangle())
@@ -484,10 +498,14 @@ struct ColumnPane: View {
                     }
                 }
                 .onTapGesture { onSelect(item) }
-            ColumnRow(item: item, isHighlighted: highlightedURL == item.url)
+            // Uses the shared selection and the same highlight treatment as the list and
+            // icon views, so a selection looks identical in all three.
+            ColumnRow(item: item, isHighlighted: isSelected)
                 .allowsHitTesting(false)
         }
-        .fileDragOut(item: item, files: items, selectedIDs: highlightedURL == item.url ? [item.id] : [])
+        .itemHitArea(item.id, isSelected: isSelected, cornerRadius: 4, inset: 0)
+        .fileDragOut(item: item, files: items,
+                     selectedIDs: isSelected ? selectedIDs : [item.id])
         .contextMenu { columnContextMenu(item: item) }
     }
 
@@ -630,6 +648,7 @@ struct ColumnPane: View {
             DispatchQueue.main.async {
                 guard gen == reloadGeneration else { return }
                 items = loaded
+                refreshGroups()
             }
         }
     }
@@ -665,18 +684,22 @@ struct ColumnRow: View {
             Image(nsImage: item.icon).resizable().frame(width: 16, height: 16)
                 .allowsHitTesting(false)
             Text(item.name).font(.system(size: 12)).lineLimit(1)
+                .foregroundStyle(isHighlighted ? Color.white : Color.primary)
                 .allowsHitTesting(false)
             TagDotsView(colors: item.tagColors, size: 9)
                 .allowsHitTesting(false)
             Spacer()
             if item.isBrowsableFolder {
-                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.caption2)
+                    .foregroundStyle(isHighlighted ? Color.white.opacity(0.8) : Color.secondary)
                     .allowsHitTesting(false)
             }
         }
         .padding(.vertical, 2)
         .padding(.horizontal, 4)
-        .background(isHighlighted ? Color.accentColor.opacity(0.25) : Color.clear)
+        // The highlight itself is painted by the AppKit layer (itemHitArea), which is
+        // what the list and icon views use — so all three now look identical instead of
+        // this view drawing its own translucent accent fill.
         .clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }
