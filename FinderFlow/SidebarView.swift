@@ -54,6 +54,7 @@ struct SidebarView: View {
     let usedTagNames: [String]
     @EnvironmentObject var favorites: FavoritesService
     @State private var recentFolders: [URL] = []
+    @State private var mountedVolumes: [MountedVolumeInfo] = []
 
     var body: some View {
         List(selection: $selection) {
@@ -119,7 +120,16 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .onAppear { loadRecent() }
+        .onAppear {
+            loadRecent()
+            refreshVolumes()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in
+            refreshVolumes()
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in
+            refreshVolumes()
+        }
         .onChange(of: selection) { item in
             guard let url = item?.folderURL, url != currentPath else { return }
             // Defer so the sidebar list is not rebuilt inside its own selection update.
@@ -143,34 +153,39 @@ struct SidebarView: View {
         ].compactMap { $0 }
     }
 
-    private var mountedVolumes: [MountedVolumeInfo] {
-        let keys: [URLResourceKey] = [
-            .volumeNameKey,
-            .volumeIsRemovableKey,
-            .volumeIsInternalKey,
-            .volumeAvailableCapacityKey,
-            .volumeTotalCapacityKey
-        ]
-        guard let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) else {
-            return []
-        }
-        return urls.compactMap { url in
-            guard let vals = try? url.resourceValues(forKeys: Set(keys)),
-                  let name = vals.volumeName,
-                  let total = vals.volumeTotalCapacity, total > 0 else {
-                return nil
+    private func refreshVolumes() {
+        DispatchQueue.global(qos: .utility).async {
+            let keys: [URLResourceKey] = [
+                .volumeNameKey,
+                .volumeIsRemovableKey,
+                .volumeIsInternalKey,
+                .volumeAvailableCapacityKey,
+                .volumeTotalCapacityKey
+            ]
+            guard let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) else {
+                return
             }
-            let avail = Int64(vals.volumeAvailableCapacity ?? 0)
-            let isRemovable = vals.volumeIsRemovable ?? false
-            let icon = NSWorkspace.shared.icon(forFile: url.path)
-            return MountedVolumeInfo(
-                name: name,
-                url: url,
-                isRemovable: isRemovable,
-                totalBytes: Int64(total),
-                availableBytes: avail,
-                icon: icon
-            )
+            let vols = urls.compactMap { url -> MountedVolumeInfo? in
+                guard let vals = try? url.resourceValues(forKeys: Set(keys)),
+                      let name = vals.volumeName,
+                      let total = vals.volumeTotalCapacity, total > 0 else {
+                    return nil
+                }
+                let avail = Int64(vals.volumeAvailableCapacity ?? 0)
+                let isRemovable = vals.volumeIsRemovable ?? false
+                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                return MountedVolumeInfo(
+                    name: name,
+                    url: url,
+                    isRemovable: isRemovable,
+                    totalBytes: Int64(total),
+                    availableBytes: avail,
+                    icon: icon
+                )
+            }
+            DispatchQueue.main.async {
+                self.mountedVolumes = vols
+            }
         }
     }
 

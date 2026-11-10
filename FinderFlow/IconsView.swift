@@ -36,7 +36,14 @@ struct IconsView: View {
                                             .allowsHitTesting(false)
                                     }
                                     .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
-                                    .contextMenu { iconContextMenu(item: item) }
+                                    .contextMenu {
+                                        iconContextMenu(item: item)
+                                            .onAppear {
+                                                if !selectedIDs.contains(item.id) {
+                                                    selectedIDs = [item.id]
+                                                }
+                                            }
+                                    }
                                 }
                             }
                             .padding(.horizontal, 16)
@@ -50,7 +57,15 @@ struct IconsView: View {
                 }
                 .padding(.vertical, 12)
             }
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(
+                Color(nsColor: .textBackgroundColor)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if !selectedIDs.isEmpty {
+                            selectedIDs.removeAll()
+                        }
+                    }
+            )
             .contextMenu { FolderBackgroundMenu() }
             .background(
                 Button("") { quickLook() }

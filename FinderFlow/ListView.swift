@@ -26,6 +26,8 @@ struct ListView: View {
     @State private var renameCancelled: Bool   = false
     @FocusState private var renameActive: Bool
     @State private var keyMonitor: Any?
+    @State private var mouseMonitor: Any?
+    @State private var hoveredItemID: String?
 
     var body: some View {
         if groupBy != .none {
@@ -56,32 +58,8 @@ struct ListView: View {
     private var tableView: some View {
         Table(files, selection: $selectedIDs, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.name) { item in
-                HStack(spacing: 6) {
-                    Image(nsImage: item.icon).resizable().frame(width: 16, height: 16)
-                        .allowsHitTesting(false)
-                    if renamingID == item.id {
-                        TextField("", text: $renameText)
-                            .textFieldStyle(.plain)
-                            .resetsCursorOnExit()
-                            .focused($renameActive)
-                            .onSubmit {
-                                if let it = files.first(where: { $0.id == renamingID }) {
-                                    commitRename(for: it)
-                                }
-                            }
-                            .onExitCommand { cancelRename() }
-                    } else {
-                        Text(item.name).lineLimit(1)
-                            .foregroundStyle(fileOps.isCut && fileOps.clipboardURLs.contains(item.url)
-                                             ? Color.secondary : Color.primary)
-                            .allowsHitTesting(false)
-                    }
-                    TagDotsView(colors: item.tagColors, size: 10)
-                        .allowsHitTesting(false)
-                }
-                .opacity(fileOps.isCut && fileOps.clipboardURLs.contains(item.url) ? 0.45 : 1.0)
-                .contentShape(Rectangle())
-                .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
+                fileNameCell(for: item)
+                    .fileDragOut(item: item, files: files, selectedIDs: selectedIDs)
             }
             .width(min: 140, ideal: 280, max: 600)
 
@@ -135,9 +113,11 @@ struct ListView: View {
         .onAppear {
             syncSortOrder()
             attachKeyboardMonitor()
+            attachMouseMonitor()
         }
         .onDisappear {
             removeKeyboardMonitor()
+            removeMouseMonitor()
         }
         .contextMenu(forSelectionType: String.self) { ids in
             if ids.isEmpty {
@@ -156,18 +136,40 @@ struct ListView: View {
             Button("") { quickLook(ids: selectedIDs) }
                 .keyboardShortcut(.space, modifiers: []).hidden()
         )
-        // Release the column-resize cursor once the pointer moves into the rows.
-        // The Table's NSTableView header sets a resize cursor on its column dividers
-        // and (like every AppKit drag) leaves it stuck after a resize. The header and
-        // rows are the same view, so there's no enter/exit boundary to hook — instead
-        // we watch the live pointer position: anywhere below the header strip the
-        // cursor must be the plain arrow, so force it there. We never touch the header
-        // region (resize cursor still shows while hovering/dragging a divider) and skip
-        // it during an inline rename so the text I-beam isn't disturbed.
-        .onContinuousHover { phase in
-            guard renamingID == nil else { return }
-            if case .active(let point) = phase, point.y > kTableHeaderStripHeight {
-                NSCursor.arrow.set()
+    }
+
+    @ViewBuilder
+    private func fileNameCell(for item: FileItem) -> some View {
+        HStack(spacing: 6) {
+            Image(nsImage: item.icon).resizable().frame(width: 16, height: 16)
+                .allowsHitTesting(false)
+            if renamingID == item.id {
+                TextField("", text: $renameText)
+                    .textFieldStyle(.plain)
+                    .resetsCursorOnExit()
+                    .focused($renameActive)
+                    .onSubmit {
+                        if let it = files.first(where: { $0.id == renamingID }) {
+                            commitRename(for: it)
+                        }
+                    }
+                    .onExitCommand { cancelRename() }
+            } else {
+                Text(item.name).lineLimit(1)
+                    .foregroundStyle(fileOps.isCut && fileOps.clipboardURLs.contains(item.url)
+                                     ? Color.secondary : Color.primary)
+                    .allowsHitTesting(false)
+            }
+            TagDotsView(colors: item.tagColors, size: 10)
+                .allowsHitTesting(false)
+        }
+        .opacity(fileOps.isCut && fileOps.clipboardURLs.contains(item.url) ? 0.45 : 1.0)
+        .contentShape(Rectangle())
+        .onHover { isHovered in
+            if isHovered {
+                hoveredItemID = item.id
+            } else if hoveredItemID == item.id {
+                hoveredItemID = nil
             }
         }
     }
@@ -232,6 +234,53 @@ struct ListView: View {
         }
     }
 
+    private func attachMouseMonitor() {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .otherMouseDown]) { event in
+            if event.type == .otherMouseDown {
+                // Middle click (button 2) opens hovered item
+                if event.buttonNumber == 2 {
+                    if let targetID = hoveredItemID, let item = files.first(where: { $0.id == targetID }) {
+                        selectedIDs = [targetID]
+                        onNavigate(item)
+                        return nil
+                    }
+                }
+            } else if event.type == .leftMouseDown {
+                // Deselect when clicking on empty space in NSTableView (row == -1)
+                if let window = NSApp.keyWindow,
+                   let tableView = findTableView(in: window.contentView) {
+                    let point = tableView.convert(event.locationInWindow, from: nil)
+                    let row = tableView.row(at: point)
+                    if row == -1 && !event.modifierFlags.contains(.command) && !event.modifierFlags.contains(.shift) {
+                        if !selectedIDs.isEmpty {
+                            DispatchQueue.main.async {
+                                self.selectedIDs.removeAll()
+                            }
+                        }
+                    }
+                }
+            }
+            return event
+        }
+    }
+
+    private func removeMouseMonitor() {
+        if let monitor = mouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseMonitor = nil
+        }
+    }
+
+    private func findTableView(in view: NSView?) -> NSTableView? {
+        guard let view = view else { return nil }
+        if let tv = view as? NSTableView { return tv }
+        for sub in view.subviews {
+            if let found = findTableView(in: sub) { return found }
+        }
+        return nil
+    }
+
     // MARK: - Inline rename helpers
 
     func startRename(item: FileItem) {
@@ -270,7 +319,8 @@ struct ListView: View {
             onRename: { startRename(item: $0) },
             onQuickLook: { quickLook(ids: $0) },
             onGetInfo: { showGetInfo(for: $0) },
-            onConfirmDelete: { names, act in confirmPermanentDelete(names: names, onConfirm: act) }
+            onConfirmDelete: { names, act in confirmPermanentDelete(names: names, onConfirm: act) },
+            onSelect: { self.selectedIDs = $0 }
         )
     }
 
@@ -529,91 +579,99 @@ struct ItemMenuContent: View {
     let onQuickLook: (Set<String>) -> Void
     let onGetInfo: ([FileItem]) -> Void
     let onConfirmDelete: ([String], @escaping () -> Void) -> Void
+    var onSelect: ((Set<String>) -> Void)? = nil
 
     var body: some View {
-        if let item = sel.first {
-            let urls = sel.map(\.url)
-            Group {
-                Button("Open") { onNavigate(item) }
-                if item.isBrowsableFolder {
-                    Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
-                } else if item.isPackage {
-                    Button("Show Package Contents") { onBrowseInto(item.url) }
-                }
-                Button("Open in Terminal") {
-                    let target = item.isDirectory ? item.url : currentPath
-                    TerminalLauncher.openTerminal(workingDirectory: target)
-                }
-                Divider()
-                Button("Quick Look") { onQuickLook(Set(sel.map(\.id))) }
-                Button("Get Info")   { onGetInfo(sel) }
-                Divider()
-                Button("Rename…")    { onRename(item) }
-                Button(sel.count > 1 ? "Duplicate \(sel.count) Items" : "Duplicate") {
-                    fileOps.duplicate(urls, reload: onReload)
-                }
-                Button(sel.count > 1 ? "Make \(sel.count) Aliases" : "Make Alias") {
-                    urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
-                }
-            }
-            Group {
-                Button(sel.count > 1 ? "Compress \(sel.count) Items" : "Compress \"\(item.name)\"") {
-                    fileOps.compress(urls, reload: onReload)
-                }
-                if sel.count == 1 && item.isArchive {
-                    Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
-                }
-                Divider()
-                Button("Cut") { fileOps.cut(urls) }
-                Button("Copy") { fileOps.copy(urls) }
-                Button("Paste") {
-                    let dest = (sel.count == 1 && item.isDirectory) ? item.url : currentPath
-                    fileOps.paste(to: dest, reload: onReload)
-                }
-                .disabled(fileOps.pasteboardURLs.isEmpty)
-                Divider()
-                Menu("Share") {
-                    Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
+        Group {
+            if let item = sel.first {
+                let urls = sel.map(\.url)
+                Group {
+                    Button("Open") { onNavigate(item) }
+                    if item.isBrowsableFolder {
+                        Button("Open in New Window") { NSWorkspace.shared.open(item.url) }
+                    } else if item.isPackage {
+                        Button("Show Package Contents") { onBrowseInto(item.url) }
+                    }
+                    Button("Open in Terminal") {
+                        let target = item.isDirectory ? item.url : currentPath
+                        TerminalLauncher.openTerminal(workingDirectory: target)
+                    }
                     Divider()
-                    Button("Share…") { fileOps.showShareSheet(for: urls) }
-                }
-                Divider()
-                Menu("Tags") {
-                    TagMenuContent(targets: sel, fileOps: fileOps, onReload: onReload)
-                }
-            }
-            Group {
-                Divider()
-                if item.isDirectory {
-                    if favorites.isPinned(item.url) {
-                        Button("Remove from Sidebar") { favorites.unpin(item.url) }
-                    } else {
-                        Button("Add to Sidebar") { favorites.pin(item.url) }
+                    Button("Quick Look") { onQuickLook(Set(sel.map(\.id))) }
+                    Button("Get Info")   { onGetInfo(sel) }
+                    Divider()
+                    Button("Rename…")    { onRename(item) }
+                    Button(sel.count > 1 ? "Duplicate \(sel.count) Items" : "Duplicate") {
+                        fileOps.duplicate(urls, reload: onReload)
+                    }
+                    Button(sel.count > 1 ? "Make \(sel.count) Aliases" : "Make Alias") {
+                        urls.forEach { fileOps.makeAlias(for: $0, reload: onReload) }
                     }
                 }
-                Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
-                }
-                Button(sel.count > 1 ? "Copy \(sel.count) Paths" : "Copy Path") {
-                    fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
-                }
-                Divider()
-                Button("Move to Trash", role: .destructive) {
-                    fileOps.trash(urls, reload: onReload)
-                }
-                Button("Delete Permanently…", role: .destructive) {
-                    onConfirmDelete(sel.map(\.name)) {
-                        fileOps.permanentlyDelete(urls, reload: onReload)
+                Group {
+                    Button(sel.count > 1 ? "Compress \(sel.count) Items" : "Compress \"\(item.name)\"") {
+                        fileOps.compress(urls, reload: onReload)
+                    }
+                    if sel.count == 1 && item.isArchive {
+                        Button("Extract Here") { fileOps.extract(item.url, reload: onReload) }
+                    }
+                    Divider()
+                    Button("Cut") { fileOps.cut(urls) }
+                    Button("Copy") { fileOps.copy(urls) }
+                    Button("Paste") {
+                        let dest = (sel.count == 1 && item.isDirectory) ? item.url : currentPath
+                        fileOps.paste(to: dest, reload: onReload)
+                    }
+                    .disabled(fileOps.pasteboardURLs.isEmpty)
+                    Divider()
+                    Menu("Share") {
+                        Button("AirDrop") { fileOps.shareViaAirDrop(urls) }
+                        Divider()
+                        Button("Share…") { fileOps.showShareSheet(for: urls) }
+                    }
+                    Divider()
+                    Menu("Tags") {
+                        TagMenuContent(targets: sel, fileOps: fileOps, onReload: onReload)
                     }
                 }
+                Group {
+                    Divider()
+                    if item.isDirectory {
+                        if favorites.isPinned(item.url) {
+                            Button("Remove from Sidebar") { favorites.unpin(item.url) }
+                        } else {
+                            Button("Add to Sidebar") { favorites.pin(item.url) }
+                        }
+                    }
+                    Button("Show in Finder") {
+                        NSWorkspace.shared.selectFile(item.url.path, inFileViewerRootedAtPath: "")
+                    }
+                    Button(sel.count > 1 ? "Copy \(sel.count) Paths" : "Copy Path") {
+                        fileOps.copyPath(urls.map(\.path).joined(separator: "\n"))
+                    }
+                    Divider()
+                    Button("Move to Trash", role: .destructive) {
+                        fileOps.trash(urls, reload: onReload)
+                    }
+                    Button("Delete Permanently…", role: .destructive) {
+                        onConfirmDelete(sel.map(\.name)) {
+                            fileOps.permanentlyDelete(urls, reload: onReload)
+                        }
+                    }
+                }
+            } else {
+                Button("Paste") { fileOps.paste(to: currentPath, reload: onReload) }
+                    .disabled(fileOps.pasteboardURLs.isEmpty)
+                if fileOps.canUndo { Button("Undo") { fileOps.undo() } }
+                if fileOps.canRedo { Button("Redo") { fileOps.redo() } }
+                Divider()
+                Button("Refresh") { onReload() }
             }
-        } else {
-            Button("Paste") { fileOps.paste(to: currentPath, reload: onReload) }
-                .disabled(fileOps.pasteboardURLs.isEmpty)
-            if fileOps.canUndo { Button("Undo") { fileOps.undo() } }
-            if fileOps.canRedo { Button("Redo") { fileOps.redo() } }
-            Divider()
-            Button("Refresh") { onReload() }
+        }
+        .onAppear {
+            if !sel.isEmpty {
+                onSelect?(Set(sel.map(\.id)))
+            }
         }
     }
 }
